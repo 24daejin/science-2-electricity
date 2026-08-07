@@ -31,17 +31,6 @@
     <h2 id="question-text"></h2>
 
     <div class="choice-list" id="choice-list"></div>
-
-    <div id="confidence-section" style="display:none;">
-      <h2>이 답에 대해 얼마나 확신하나요?</h2>
-      <div class="choice-list" id="confidence-list"></div>
-    </div>
-
-    <div id="feedback-section" style="display:none;">
-      <div id="feedback-box" class="feedback-box"></div>
-      <a class="btn block" id="chatbot-link" style="display:none; margin-top:12px; text-decoration:none;">파인만 챗봇으로 이 개념 다시 살펴보기</a>
-      <p class="muted" id="wait-next-text" style="margin-top:12px;">선생님이 다음 문항으로 넘기면 자동으로 이어집니다.</p>
-    </div>
   </div>
 
   <div id="ended-view" class="card" style="display:none;">
@@ -88,12 +77,9 @@
     conceptTag: document.getElementById('concept-tag'),
     questionText: document.getElementById('question-text'),
     choiceList: document.getElementById('choice-list'),
-    confidenceSection: document.getElementById('confidence-section'),
-    confidenceList: document.getElementById('confidence-list'),
-    feedbackSection: document.getElementById('feedback-section'),
-    feedbackBox: document.getElementById('feedback-box'),
-    chatbotLink: document.getElementById('chatbot-link'),
   };
+
+  let followupEl = null; // 선택한 보기 바로 아래에 끼워넣는 확신도/피드백 블록
 
   function showView(name) {
     ['loading', 'waiting', 'quiz', 'ended', 'error'].forEach((v) => {
@@ -154,6 +140,7 @@
     els.questionText.textContent = q.question;
 
     els.choiceList.innerHTML = '';
+    followupEl = null;
     const alreadyAnswered = answeredQuestionIds.has(q.questionId);
 
     q.choices.forEach((choiceText, idx) => {
@@ -161,58 +148,75 @@
       const btn = document.createElement('button');
       btn.className = 'choice';
       btn.type = 'button';
+      btn.dataset.choiceNum = String(num);
       btn.textContent = `${num}. ${choiceText}`;
       btn.disabled = alreadyAnswered;
       btn.addEventListener('click', () => onChoiceSelected(q, num, btn));
       els.choiceList.appendChild(btn);
     });
+  }
 
-    els.confidenceSection.style.display = 'none';
-    els.feedbackSection.style.display = 'none';
+  function choiceButtons() {
+    return [...els.choiceList.querySelectorAll('button.choice')];
   }
 
   function onChoiceSelected(q, num, btnEl) {
     selectedChoice = num;
-    [...els.choiceList.children].forEach((c) => c.classList.remove('selected'));
+    choiceButtons().forEach((c) => c.classList.remove('selected'));
     btnEl.classList.add('selected');
 
-    els.confidenceList.innerHTML = '';
+    if (followupEl) followupEl.remove();
+    followupEl = document.createElement('div');
+    followupEl.className = 'followup-block';
+
+    const heading = document.createElement('h2');
+    heading.textContent = '이 답에 대해 얼마나 확신하나요?';
+    heading.style.marginTop = '4px';
+    followupEl.appendChild(heading);
+
+    const confidenceList = document.createElement('div');
+    confidenceList.className = 'choice-list';
     CONFIDENCE_TAGS.forEach((tag) => {
       const btn = document.createElement('button');
       btn.className = 'choice';
       btn.type = 'button';
       btn.textContent = tag.label;
-      btn.addEventListener('click', () => onConfidenceSelected(q, tag, btn));
-      els.confidenceList.appendChild(btn);
+      btn.addEventListener('click', () => onConfidenceSelected(q, tag));
+      confidenceList.appendChild(btn);
     });
+    followupEl.appendChild(confidenceList);
 
-    els.confidenceSection.style.display = 'block';
-    els.feedbackSection.style.display = 'none';
+    btnEl.insertAdjacentElement('afterend', followupEl);
+    followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function onConfidenceSelected(q, tag, btnEl) {
+  function onConfidenceSelected(q, tag) {
     selectedConfidence = tag;
-    [...els.confidenceList.children].forEach((c) => c.classList.remove('selected'));
-    btnEl.classList.add('selected');
 
     const isCorrect = selectedChoice === q.answer;
 
-    [...els.choiceList.children].forEach((c, idx) => {
-      const num = idx + 1;
+    choiceButtons().forEach((c) => {
+      const num = Number(c.dataset.choiceNum);
       c.disabled = true;
       if (num === q.answer) c.classList.add('correct');
       else if (num === selectedChoice) c.classList.add('incorrect');
     });
 
     const feedbackKey = feedbackKeyFor(isCorrect, tag.bucket);
-    els.feedbackBox.textContent = q.feedback[feedbackKey] || '';
-    els.feedbackBox.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
-    els.feedbackSection.style.display = 'block';
+
+    followupEl.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
+    box.textContent = q.feedback[feedbackKey] || '';
+    followupEl.appendChild(box);
 
     // 오답 재학습 연계: 핵심 개념을 바탕으로 파인만 챗봇으로 라우팅 (오답+확신에서 특히 강조)
     if (!isCorrect && q.coreConcept) {
-      els.chatbotLink.style.display = 'inline-flex';
-      els.chatbotLink.textContent =
+      const chatbotLink = document.createElement('a');
+      chatbotLink.className = 'btn block';
+      chatbotLink.style.marginTop = '12px';
+      chatbotLink.style.textDecoration = 'none';
+      chatbotLink.textContent =
         tag.bucket === 'confident'
           ? '확신했는데 틀렸어요 — 파인만 챗봇으로 다시 짚어보기'
           : '파인만 챗봇으로 이 개념 다시 살펴보기';
@@ -221,10 +225,17 @@
       chatUrl.searchParams.set('from', 'formative');
       chatUrl.searchParams.set('subunit', subunitId);
       chatUrl.searchParams.set('question', q.questionId);
-      els.chatbotLink.href = chatUrl.toString();
-    } else {
-      els.chatbotLink.style.display = 'none';
+      chatbotLink.href = chatUrl.toString();
+      followupEl.appendChild(chatbotLink);
     }
+
+    const waitNext = document.createElement('p');
+    waitNext.className = 'muted';
+    waitNext.style.marginTop = '12px';
+    waitNext.textContent = '선생님이 다음 문항으로 넘기면 자동으로 이어집니다.';
+    followupEl.appendChild(waitNext);
+
+    followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     answeredQuestionIds.add(q.questionId);
 

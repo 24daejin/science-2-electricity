@@ -149,6 +149,22 @@ p.muted,
   margin: 18px 0;
 }
 
+/* 선택한 보기 바로 아래에 끼워넣는 확신도/피드백 블록 (choice-list의 grid item으로 삽입됨) */
+.followup-block {
+  border-left: 3px solid var(--color-primary);
+  padding: 4px 0 4px 16px;
+  margin: 2px 0;
+}
+
+.followup-block h2 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+
+.followup-block .choice-list {
+  margin: 0;
+}
+
 .choice {
   display: flex;
   align-items: center;

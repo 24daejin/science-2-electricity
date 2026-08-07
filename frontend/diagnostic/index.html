@@ -29,16 +29,6 @@
     <h2 id="question-text"></h2>
 
     <div class="choice-list" id="choice-list"></div>
-
-    <div id="confidence-section" style="display:none;">
-      <h2>이 답에 대해 얼마나 확신하나요?</h2>
-      <div class="choice-list" id="confidence-list"></div>
-    </div>
-
-    <div id="feedback-section" style="display:none;">
-      <div id="feedback-box" class="feedback-box"></div>
-      <button class="btn block" id="next-btn" style="margin-top:16px;">다음 문항</button>
-    </div>
   </div>
 
   <div id="done-view" class="card" style="display:none;">
@@ -73,13 +63,10 @@
     priorAreaTag: document.getElementById('prior-area-tag'),
     questionText: document.getElementById('question-text'),
     choiceList: document.getElementById('choice-list'),
-    confidenceSection: document.getElementById('confidence-section'),
-    confidenceList: document.getElementById('confidence-list'),
-    feedbackSection: document.getElementById('feedback-section'),
-    feedbackBox: document.getElementById('feedback-box'),
-    nextBtn: document.getElementById('next-btn'),
     doneSummary: document.getElementById('done-summary'),
   };
+
+  let followupEl = null; // 선택한 보기 바로 아래에 끼워넣는 확신도/피드백 블록
 
   function showError(message) {
     els.loading.style.display = 'none';
@@ -111,62 +98,85 @@
     els.questionText.textContent = q.question;
 
     els.choiceList.innerHTML = '';
+    followupEl = null;
     q.choices.forEach((choiceText, idx) => {
       const num = idx + 1;
       const btn = document.createElement('button');
       btn.className = 'choice';
       btn.type = 'button';
+      btn.dataset.choiceNum = String(num);
       btn.textContent = `${num}. ${choiceText}`;
       btn.addEventListener('click', () => onChoiceSelected(num, btn));
       els.choiceList.appendChild(btn);
     });
-
-    els.confidenceSection.style.display = 'none';
-    els.feedbackSection.style.display = 'none';
   }
 
-  // 1) 학생이 답을 선택하면 -> 확신도 태그 화면을 먼저 보여준다 (정답 공개는 아직 하지 않음)
+  function choiceButtons() {
+    return [...els.choiceList.querySelectorAll('button.choice')];
+  }
+
+  // 1) 학생이 답을 선택하면 -> 그 보기 바로 아래에 확신도 태그를 먼저 보여준다 (정답 공개는 아직 하지 않음)
   function onChoiceSelected(num, btnEl) {
     selectedChoice = num;
-    [...els.choiceList.children].forEach((c) => c.classList.remove('selected'));
+    choiceButtons().forEach((c) => c.classList.remove('selected'));
     btnEl.classList.add('selected');
 
-    els.confidenceList.innerHTML = '';
+    if (followupEl) followupEl.remove();
+    followupEl = document.createElement('div');
+    followupEl.className = 'followup-block';
+
+    const heading = document.createElement('h2');
+    heading.textContent = '이 답에 대해 얼마나 확신하나요?';
+    heading.style.marginTop = '4px';
+    followupEl.appendChild(heading);
+
+    const confidenceList = document.createElement('div');
+    confidenceList.className = 'choice-list';
     CONFIDENCE_TAGS.forEach((tag) => {
       const btn = document.createElement('button');
       btn.className = 'choice';
       btn.type = 'button';
       btn.textContent = tag.label;
-      btn.addEventListener('click', () => onConfidenceSelected(tag, btn));
-      els.confidenceList.appendChild(btn);
+      btn.addEventListener('click', () => onConfidenceSelected(tag));
+      confidenceList.appendChild(btn);
     });
+    followupEl.appendChild(confidenceList);
 
-    els.confidenceSection.style.display = 'block';
-    els.feedbackSection.style.display = 'none';
-    els.confidenceSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    btnEl.insertAdjacentElement('afterend', followupEl);
+    followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // 2) 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 보여준다
-  function onConfidenceSelected(tag, btnEl) {
+  // 2) 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 같은 자리에 보여준다
+  function onConfidenceSelected(tag) {
     selectedConfidence = tag;
-    [...els.confidenceList.children].forEach((c) => c.classList.remove('selected'));
-    btnEl.classList.add('selected');
 
     const q = questions[currentIndex];
     const isCorrect = selectedChoice === q.answer;
     if (isCorrect) correctCount += 1;
 
-    [...els.choiceList.children].forEach((c, idx) => {
-      const num = idx + 1;
+    choiceButtons().forEach((c) => {
+      const num = Number(c.dataset.choiceNum);
+      c.disabled = true;
       if (num === q.answer) c.classList.add('correct');
       else if (num === selectedChoice) c.classList.add('incorrect');
     });
 
     const feedbackKey = feedbackKeyFor(isCorrect, tag.bucket);
-    els.feedbackBox.textContent = q.feedback[feedbackKey] || '';
-    els.feedbackBox.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
-    els.feedbackSection.style.display = 'block';
-    els.feedbackSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    followupEl.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
+    box.textContent = q.feedback[feedbackKey] || '';
+    followupEl.appendChild(box);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn block';
+    nextBtn.style.marginTop = '16px';
+    nextBtn.textContent = '다음 문항';
+    nextBtn.addEventListener('click', goToNextQuestion);
+    followupEl.appendChild(nextBtn);
+
+    followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     callApi('submitDiagnosticResponse', {
       questionId: q.questionId,
@@ -176,7 +186,7 @@
     }).catch((err) => console.warn('응답 저장 실패:', err.message));
   }
 
-  els.nextBtn.addEventListener('click', () => {
+  function goToNextQuestion() {
     currentIndex += 1;
     if (currentIndex >= questions.length) {
       els.quiz.style.display = 'none';
@@ -185,7 +195,7 @@
     } else {
       renderQuestion();
     }
-  });
+  }
 
   if (user) loadQuestions();
 </script>

@@ -35,6 +35,30 @@ async function fetchFormativeQuestionsFS(subunitId) {
 }
 
 /**
+ * 6개 소단원의 세션 상태 전체를 실시간으로 구독합니다. 주로 홈 화면에서
+ * "지금 진행 중인 소단원"을 강조 표시하는 데 씁니다. onUpdate에는
+ * { subunitId: {status, currentQuestionId, updatedAt} } 형태의 맵이 전달됩니다.
+ * @returns {() => void} 구독 해제 함수
+ */
+function watchAllSessionStates(onUpdate) {
+  return db.collection('sessionState').onSnapshot(
+    (snap) => {
+      const byId = {};
+      snap.forEach((doc) => {
+        const data = doc.data();
+        byId[doc.id] = {
+          status: data.status || '대기',
+          currentQuestionId: data.currentQuestionId || null,
+          updatedAt: data.updatedAt || null,
+        };
+      });
+      onUpdate(byId);
+    },
+    (err) => console.warn('전체 세션 상태 구독 실패:', err.message)
+  );
+}
+
+/**
  * 세션 진행 상태를 실시간으로 구독합니다(폴링 대체). 상태가 바뀔 때마다 onUpdate가 호출됩니다.
  * @returns {() => void} 구독 해제 함수
  */

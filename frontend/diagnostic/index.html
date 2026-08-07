@@ -24,6 +24,7 @@
   <div id="quiz-view" class="card" style="display:none;">
     <div class="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
     <p class="muted" id="progress-text"></p>
+    <div class="status-banner" id="attempt-banner" style="display:none;"></div>
 
     <span class="tag" id="prior-area-tag"></span>
     <h2 id="question-text"></h2>
@@ -39,6 +40,10 @@
   <div id="error-view" class="card error" style="display:none;"></div>
 </div>
 
+<div id="feedback-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" id="feedback-modal-box"></div>
+</div>
+
 <script src="../assets/js/config.js"></script>
 <script src="../assets/js/api.js"></script>
 <script src="../assets/js/auth.js"></script>
@@ -49,6 +54,7 @@
 
   let questions = [];
   let currentIndex = 0;
+  let attemptCounts = {}; // questionId -> 지금까지의 시도 횟수(이번 세션 포함해서 갱신)
   const latestResultByQuestion = {}; // questionId -> 가장 최근 시도의 정답 여부(재도전 시 마지막 결과만 반영)
   let selectedChoice = null; // 1~4
   let selectedConfidence = null; // CONFIDENCE_TAGS 항목
@@ -60,13 +66,16 @@
     error: document.getElementById('error-view'),
     progressFill: document.getElementById('progress-fill'),
     progressText: document.getElementById('progress-text'),
+    attemptBanner: document.getElementById('attempt-banner'),
     priorAreaTag: document.getElementById('prior-area-tag'),
     questionText: document.getElementById('question-text'),
     choiceList: document.getElementById('choice-list'),
     doneSummary: document.getElementById('done-summary'),
+    modalOverlay: document.getElementById('feedback-modal'),
+    modalBox: document.getElementById('feedback-modal-box'),
   };
 
-  let followupEl = null; // 선택한 보기 바로 아래에 끼워넣는 확신도/피드백 블록
+  let followupEl = null; // 선택한 보기 바로 아래에 끼워넣는 확신도 블록
 
   function showError(message) {
     els.loading.style.display = 'none';
@@ -79,6 +88,7 @@
     try {
       questions = await fetchDiagnosticQuestionsFS();
       if (!questions.length) throw new Error('등록된 진단평가 문항이 없습니다.');
+      attemptCounts = await callApi('getDiagnosticAttemptCounts', {}).catch(() => ({}));
       els.loading.style.display = 'none';
       els.quiz.style.display = 'block';
       renderQuestion();
@@ -96,6 +106,14 @@
     els.progressText.textContent = `${currentIndex + 1} / ${questions.length}`;
     els.priorAreaTag.textContent = q.priorArea || '';
     els.questionText.textContent = q.question;
+
+    const priorAttempts = attemptCounts[q.questionId] || 0;
+    if (priorAttempts > 0) {
+      els.attemptBanner.style.display = 'block';
+      els.attemptBanner.textContent = `지금은 ${priorAttempts + 1}번째 풀고 있어요.`;
+    } else {
+      els.attemptBanner.style.display = 'none';
+    }
 
     els.choiceList.innerHTML = '';
     followupEl = null;
@@ -115,11 +133,13 @@
     return [...els.choiceList.querySelectorAll('button.choice')];
   }
 
-  // 1) 학생이 답을 선택하면 -> 그 보기 바로 아래에 확신도 태그를 먼저 보여준다 (정답 공개는 아직 하지 않음)
-  // 언제든 다른(또는 같은) 보기를 다시 눌러 재도전할 수 있다 — 보기 버튼은 절대 비활성화하지 않는다.
+  // 학생이 답을 선택하면 -> 그 보기 바로 아래에 확신도 태그를 먼저 보여준다 (정답 공개는 아직 하지 않음)
   function onChoiceSelected(num, btnEl) {
     selectedChoice = num;
-    choiceButtons().forEach((c) => c.classList.remove('selected', 'correct', 'incorrect'));
+    choiceButtons().forEach((c) => {
+      c.classList.remove('selected', 'correct', 'incorrect');
+      c.disabled = false;
+    });
     btnEl.classList.add('selected');
 
     if (followupEl) followupEl.remove();
@@ -147,8 +167,9 @@
     followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // 2) 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 같은 자리에 보여준다
-  async function onConfidenceSelected(tag) {
+  // 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 팝업으로 보여준다.
+  // 팝업의 "확인"을 누르면 다음 문항으로 자동으로 넘어간다.
+  function onConfidenceSelected(tag) {
     selectedConfidence = tag;
 
     const q = questions[currentIndex];
@@ -157,52 +178,45 @@
 
     choiceButtons().forEach((c) => {
       const num = Number(c.dataset.choiceNum);
+      c.disabled = true;
       if (num === q.answer) c.classList.add('correct');
       else if (num === selectedChoice) c.classList.add('incorrect');
     });
+    if (followupEl) followupEl.remove();
 
     const feedbackKey = feedbackKeyFor(isCorrect, tag.bucket);
+    showFeedbackModal(isCorrect, q.feedback[feedbackKey] || '', goToNextQuestion);
 
-    followupEl.innerHTML = '';
+    callApi('submitDiagnosticResponse', {
+      questionId: q.questionId,
+      selectedChoice: selectedChoice,
+      confidence: tag.label,
+      isCorrect: isCorrect,
+    })
+      .then((result) => {
+        attemptCounts[q.questionId] = result.attemptNumber;
+      })
+      .catch((err) => console.warn('응답 저장 실패:', err.message));
+  }
+
+  function showFeedbackModal(isCorrect, feedbackText, onConfirm) {
+    els.modalBox.innerHTML = '';
     const box = document.createElement('div');
     box.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
-    box.textContent = q.feedback[feedbackKey] || '';
-    followupEl.appendChild(box);
+    box.textContent = feedbackText;
+    els.modalBox.appendChild(box);
 
-    const attemptText = document.createElement('p');
-    attemptText.className = 'muted';
-    attemptText.style.marginTop = '10px';
-    attemptText.id = 'attempt-text';
-    attemptText.textContent = '기록하는 중...';
-    followupEl.appendChild(attemptText);
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn block';
+    confirmBtn.style.marginTop = '16px';
+    confirmBtn.textContent = '확인';
+    confirmBtn.addEventListener('click', () => {
+      els.modalOverlay.style.display = 'none';
+      onConfirm();
+    });
+    els.modalBox.appendChild(confirmBtn);
 
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.style.marginTop = '4px';
-    hint.textContent = '다시 풀어보고 싶다면 위 보기 중 하나를 다시 눌러보세요.';
-    followupEl.appendChild(hint);
-
-    const nextBtn = document.createElement('button');
-    nextBtn.className = 'btn block';
-    nextBtn.style.marginTop = '12px';
-    nextBtn.textContent = '다음 문항';
-    nextBtn.addEventListener('click', goToNextQuestion);
-    followupEl.appendChild(nextBtn);
-
-    followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    try {
-      const result = await callApi('submitDiagnosticResponse', {
-        questionId: q.questionId,
-        selectedChoice: selectedChoice,
-        confidence: tag.label,
-        isCorrect: isCorrect,
-      });
-      attemptText.textContent = `이 문항, 이번이 ${result.attemptNumber}번째 풀이예요.`;
-    } catch (err) {
-      console.warn('응답 저장 실패:', err.message);
-      attemptText.textContent = '기록 저장에 실패했어요(선생님께 알려주세요).';
-    }
+    els.modalOverlay.style.display = 'flex';
   }
 
   function goToNextQuestion() {
@@ -211,7 +225,7 @@
       els.quiz.style.display = 'none';
       els.done.style.display = 'block';
       const correctCount = Object.values(latestResultByQuestion).filter(Boolean).length;
-      els.doneSummary.textContent = `${questions.length}문항 중 ${correctCount}문항을 맞혔어요. (다시 풀어본 문항은 마지막 결과 기준)`;
+      els.doneSummary.textContent = `${questions.length}문항 중 ${correctCount}문항을 맞혔어요.`;
     } else {
       renderQuestion();
     }

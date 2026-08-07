@@ -27,13 +27,18 @@
   <div class="card" id="summary-card" style="display:none;">
     <h2 id="summary-title"></h2>
     <p class="muted">소단원 칸의 숫자는 "정답 / 시도한 문항 수"입니다. 학생 이름을 누르면 상세 이력을 볼 수 있어요.</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+      <button class="btn secondary" id="download-summary-csv-btn">요약 CSV 다운로드</button>
+      <button class="btn secondary" id="download-all-detail-btn">반 전체 상세 자료 일괄 다운로드(텍스트)</button>
+    </div>
+    <p class="muted" id="bulk-download-status"></p>
     <div style="overflow-x:auto;">
       <table class="roster-table" id="summary-table">
         <thead>
           <tr>
             <th>번호</th><th>이름</th><th>진단평가</th>
             <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
-            <th>챗봇</th>
+            <th>챗봇</th><th>문제풀이 점수</th><th>교과서활동 점수</th>
           </tr>
         </thead>
         <tbody id="summary-tbody"></tbody>
@@ -44,7 +49,8 @@
   <div class="card" id="detail-card" style="display:none;">
     <button class="btn secondary" id="back-to-summary-btn" style="margin-bottom:14px;">← 목록으로</button>
     <h2 id="detail-title"></h2>
-    <p class="muted">이 화면 전체를 인쇄(Ctrl+P)하거나 텍스트를 복사해 생활기록부 작성 참고 자료로 쓸 수 있습니다.</p>
+    <p class="muted">이 화면 전체를 인쇄(Ctrl+P)하거나, 아래 버튼으로 텍스트 파일을 받아 생활기록부 작성 참고 자료로 쓸 수 있습니다.</p>
+    <button class="btn secondary" id="download-detail-btn" style="margin-bottom:14px;">이 학생 자료 다운로드(텍스트)</button>
 
     <h3>진단평가 응답 이력</h3>
     <div style="overflow-x:auto;">
@@ -74,6 +80,8 @@
   const user = requireTeacher();
   let roster = [];
   let currentClassroom = null;
+  let currentStudents = [];
+  let currentDetail = null;
 
   const els = {
     error: document.getElementById('error-view'),
@@ -88,6 +96,10 @@
     formTbody: document.getElementById('form-tbody'),
     chatbotSessions: document.getElementById('chatbot-sessions'),
     backBtn: document.getElementById('back-to-summary-btn'),
+    downloadSummaryCsvBtn: document.getElementById('download-summary-csv-btn'),
+    downloadAllDetailBtn: document.getElementById('download-all-detail-btn'),
+    bulkDownloadStatus: document.getElementById('bulk-download-status'),
+    downloadDetailBtn: document.getElementById('download-detail-btn'),
   };
 
   const SUBUNIT_NAMES = {
@@ -128,17 +140,23 @@
   async function loadClassSummary(classroom) {
     currentClassroom = classroom;
     els.summaryTitle.textContent = `${classroom}반`;
-    els.summaryTbody.innerHTML = '<tr><td colspan="10">불러오는 중...</td></tr>';
+    els.summaryTbody.innerHTML = '<tr><td colspan="12">불러오는 중...</td></tr>';
     showView('summary');
     try {
-      const result = await callApi('getClassDashboard', { classroom });
-      renderSummary(result.students);
+      const [result, scores] = await Promise.all([
+        callApi('getClassDashboard', { classroom }),
+        callApi('getClassScores', { classroom }).catch(() => []),
+      ]);
+      const scoreBySeq = {};
+      scores.forEach((s) => { scoreBySeq[s.seq] = s; });
+      renderSummary(result.students, scoreBySeq);
     } catch (err) {
       showError('반 요약을 불러오지 못했습니다: ' + err.message);
     }
   }
 
-  function renderSummary(students) {
+  function renderSummary(students, scoreBySeq) {
+    currentStudents = students;
     els.summaryTbody.innerHTML = students
       .map((s) => {
         const subunitCells = ['1', '2', '3', '4', '5', '6']
@@ -147,6 +165,7 @@
             return `<td>${sub ? `${sub.correct}/${sub.answered}` : '-'}</td>`;
           })
           .join('');
+        const score = (scoreBySeq && scoreBySeq[s.seq]) || { quizScore: 0, activityScore: 0 };
         return `
         <tr>
           <td>${s.number}</td>
@@ -154,6 +173,8 @@
           <td>${s.diagnosticCorrect}/${s.diagnosticAnswered}</td>
           ${subunitCells}
           <td>${s.chatbotSessionCount}</td>
+          <td>${score.quizScore}</td>
+          <td>${score.activityScore}</td>
         </tr>`;
       })
       .join('');
@@ -178,11 +199,104 @@
     showView('detail');
     try {
       const result = await callApi('getStudentDetail', { seq });
+      currentDetail = result;
       renderDetail(result);
     } catch (err) {
       showError('학생 상세를 불러오지 못했습니다: ' + err.message);
     }
   }
+
+  // ---- 다운로드 ----
+
+  function downloadFile(filename, content, mime) {
+    const blob = new Blob([content], { type: (mime || 'text/plain') + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function toCsvValue(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function buildSummaryCsv(students) {
+    const header = ['번호', '이름', '진단정답', '진단응답', '형성시도', '챗봇세션수', '1소단원', '2소단원', '3소단원', '4소단원', '5소단원', '6소단원'];
+    const rows = students.map((s) => {
+      const sub = (id) => (s.subunitSummary[id] ? `${s.subunitSummary[id].correct}/${s.subunitSummary[id].answered}` : '');
+      return [
+        s.number, s.name, s.diagnosticCorrect, s.diagnosticAnswered, s.formativeAttempts, s.chatbotSessionCount,
+        sub('1'), sub('2'), sub('3'), sub('4'), sub('5'), sub('6'),
+      ];
+    });
+    return '﻿' + [header, ...rows].map((r) => r.map(toCsvValue).join(',')).join('\r\n');
+  }
+
+  function buildStudentReportText(detail) {
+    const st = detail.student;
+    const lines = [];
+    lines.push(`=== ${st.classroom}반 ${st.number}번 ${st.name} ===`, '');
+
+    lines.push('[진단평가 응답]');
+    if (!detail.diagnosticResponses.length) lines.push('(기록 없음)');
+    detail.diagnosticResponses.forEach((r) => {
+      lines.push(`${fmtTime(r['제출시각'])} | ${r['문항ID']} | 선택 ${r['선택한 보기']} | ${r['확신도']} | ${r['정오답']} | ${r['시도번호'] || ''}번째`);
+    });
+    lines.push('');
+
+    lines.push('[형성평가 응답]');
+    if (!detail.formativeResponses.length) lines.push('(기록 없음)');
+    detail.formativeResponses.forEach((r) => {
+      const sname = SUBUNIT_NAMES[String(r['소단원ID'])] || r['소단원ID'];
+      lines.push(`${fmtTime(r['제출시각'])} | ${sname} | ${r['문항ID']} | 선택 ${r['선택한 보기']} | ${r['확신도']} | ${r['정오답']} | ${r['시도번호'] || ''}번째`);
+    });
+    lines.push('');
+
+    lines.push('[관련 내용 답하기(챗봇) 대화]');
+    if (!detail.chatbotSessions.length) lines.push('(기록 없음)');
+    detail.chatbotSessions.forEach((s) => {
+      lines.push(`--- 개념: ${s.concept || ''} ---`);
+      s.turns.forEach((t) => lines.push(`${t.speaker}: ${t.message}`));
+      lines.push('');
+    });
+
+    return lines.join('\n');
+  }
+
+  els.downloadSummaryCsvBtn.addEventListener('click', () => {
+    if (!currentStudents.length) return;
+    downloadFile(`${currentClassroom}반_요약_${Date.now()}.csv`, buildSummaryCsv(currentStudents), 'text/csv');
+  });
+
+  els.downloadAllDetailBtn.addEventListener('click', async () => {
+    if (!currentStudents.length) return;
+    els.downloadAllDetailBtn.disabled = true;
+    const parts = [];
+    for (let i = 0; i < currentStudents.length; i++) {
+      const s = currentStudents[i];
+      els.bulkDownloadStatus.textContent = `${i + 1}/${currentStudents.length} — ${s.name} 자료 수집 중...`;
+      try {
+        const detail = await callApi('getStudentDetail', { seq: s.seq });
+        parts.push(buildStudentReportText(detail));
+      } catch (err) {
+        parts.push(`=== ${s.name} 자료를 불러오지 못했습니다: ${err.message} ===`);
+      }
+    }
+    els.bulkDownloadStatus.textContent = '다운로드 준비 완료.';
+    downloadFile(`${currentClassroom}반_전체상세_${Date.now()}.txt`, parts.join('\n\n'));
+    els.downloadAllDetailBtn.disabled = false;
+  });
+
+  els.downloadDetailBtn.addEventListener('click', () => {
+    if (!currentDetail) return;
+    const st = currentDetail.student;
+    downloadFile(`${st.classroom}반_${st.number}번_${st.name}_${Date.now()}.txt`, buildStudentReportText(currentDetail));
+  });
 
   function renderDetail(result) {
     const st = result.student;

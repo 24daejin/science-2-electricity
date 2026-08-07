@@ -30,12 +30,14 @@
     <span class="tag" id="control-title"></span>
     <div class="status-banner" id="status-banner">상태를 불러오는 중...</div>
 
-    <div style="display:flex; gap:8px; margin:12px 0;">
+    <div style="display:flex; gap:8px; margin:12px 0; flex-wrap:wrap;">
+      <button class="btn" id="batch-btn">전체 문항 일괄 배포</button>
       <button class="btn secondary" id="end-btn">세션 종료</button>
       <button class="btn secondary" id="idle-btn">대기 상태로</button>
     </div>
+    <p class="muted" style="margin-bottom:14px;">"전체 문항 일괄 배포"를 누르면 학생이 문항 하나씩 기다리지 않고, 소단원 전체 문항을 자기 속도로 순서대로 풉니다. 진행 속도 차이로 아이들이 힘들어할 때 유용해요.</p>
 
-    <h2>문항 목록</h2>
+    <h2>문항별로 하나씩 진행</h2>
     <p class="muted">원하는 문항의 "이 문항 시작"을 누르면 학생 화면이 실시간으로 바뀝니다.</p>
     <div id="question-list"></div>
   </div>
@@ -72,6 +74,7 @@
     questionList: document.getElementById('question-list'),
     endBtn: document.getElementById('end-btn'),
     idleBtn: document.getElementById('idle-btn'),
+    batchBtn: document.getElementById('batch-btn'),
   };
 
   function showError(msg) {
@@ -136,6 +139,8 @@
     currentQuestionId = state.currentQuestionId;
     if (state.status === '종료') {
       els.statusBanner.textContent = '이 소단원은 종료된 상태입니다.';
+    } else if (state.status === '일괄') {
+      els.statusBanner.textContent = '일괄 배포 중 — 학생들이 전체 문항을 각자 속도로 풀고 있어요.';
     } else if (state.status === '진행중' && state.currentQuestionId) {
       const q = questionsById[state.currentQuestionId];
       els.statusBanner.textContent = `진행 중 — ${state.currentQuestionId}${q ? ' · ' + q.question : ''}`;
@@ -161,6 +166,15 @@
       alert('진행 상태 변경에 실패했습니다: ' + err.message);
     }
   }
+
+  els.batchBtn.addEventListener('click', async () => {
+    if (!currentSubunitId) return;
+    try {
+      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '일괄' });
+    } catch (err) {
+      alert('일괄 배포에 실패했습니다: ' + err.message);
+    }
+  });
 
   els.endBtn.addEventListener('click', async () => {
     if (!currentSubunitId) return;

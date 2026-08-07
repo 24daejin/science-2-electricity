@@ -13,6 +13,7 @@ var SHEET_NAMES = {
   CHATBOT_LOG: '챗봇_로그',
   DROPOUT_LOG: '이탈_로그',
   SESSION_STATE: '세션_상태',
+  SCORE_LOG: '점수_로그',
 };
 
 /**

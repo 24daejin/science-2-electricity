@@ -27,10 +27,16 @@ function getRoutes_() {
     // 진단평가
     getDiagnosticQuestions: { fn: Diagnostic_getQuestions, auth: true },
     submitDiagnosticResponse: { fn: Diagnostic_submitResponse, auth: true },
+    getDiagnosticAttemptCounts: { fn: Diagnostic_getAttemptCounts, auth: true },
 
     // 형성평가 (6개 소단원 공용)
     getFormativeQuestions: { fn: Formative_getQuestions, auth: true },
     submitFormativeResponse: { fn: Formative_submitResponse, auth: true },
+    getFormativeAttemptCounts: { fn: Formative_getAttemptCounts, auth: true },
+
+    // 점수 (학생: 본인 점수만 / 교사: 반 전체)
+    getMyScore: { fn: Score_getMine, auth: true },
+    getClassScores: { fn: Score_getClassScores, auth: true },
 
     // 파인만 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },

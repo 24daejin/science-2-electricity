@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="assets/css/style.css" />
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="page">
@@ -50,6 +52,10 @@
   <div id="home-view" style="display:none;">
     <div class="card">
       <p class="muted" id="welcome-text"></p>
+      <div id="score-view" style="display:none; margin-bottom:14px;">
+        <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
+        <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
+      </div>
       <button class="btn secondary" onclick="logout()">로그아웃</button>
     </div>
 
@@ -58,7 +64,6 @@
       <p class="muted">단원을 시작하기 전, 선수학습을 확인해요.</p>
       <a class="menu-item" href="diagnostic/index.html">
         <strong>진단평가 시작하기</strong>
-        <span class="muted">9문항 · 확신도 태그 포함</span>
       </a>
     </div>
 
@@ -84,15 +89,12 @@
       </a>
     </div>
   </div>
-
-  <footer class="disclaimer">
-    ※ 이 플랫폼의 탭 전환 감지는 참고용 로그일 뿐입니다. 브라우저 특성상 다른 탭 이동을 기술적으로 막을 수는 없습니다.
-  </footer>
 </div>
 
 <script src="assets/js/config.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/auth.js"></script>
+<script src="assets/js/firebase.js"></script>
 <script>
   const SUBUNITS = [
     { id: '1', name: '마찰전기와 정전기 유도' },
@@ -106,11 +108,13 @@
   // 형성평가_문항 시트의 "소단원명" 값과 정확히 일치해야 합니다(문항 조회는 소단원ID로 하지만,
   // "관련 내용 답하기"(챗봇) 시작은 이 이름을 개념 문자열로 그대로 사용합니다).
 
+  let stopSessionWatch = null;
+
   function renderSubunitGroups() {
     const container = document.getElementById('subunit-groups');
     container.innerHTML = SUBUNITS.map(
       (s) => `
-      <div class="subunit-group">
+      <div class="subunit-group" data-subunit-id="${s.id}">
         <strong>${s.id}. ${s.name}</strong>
         <div class="subunit-group-links">
           <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
@@ -118,6 +122,17 @@
         </div>
       </div>`
     ).join('');
+
+    if (stopSessionWatch) stopSessionWatch();
+    stopSessionWatch = watchAllSessionStates((byId) => {
+      SUBUNITS.forEach((s) => {
+        const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
+        if (!el) return;
+        const state = byId[s.id];
+        const isActive = state && (state.status === '진행중' || state.status === '일괄');
+        el.classList.toggle('subunit-group-active', !!isActive);
+      });
+    });
   }
 
   function showHome(user) {
@@ -127,8 +142,21 @@
       user.role === 'teacher' ? `${user.name} 선생님, 환영합니다.` : `${user.name}님, 환영합니다.`;
     if (user.role === 'teacher') {
       document.getElementById('teacher-card').style.display = 'block';
+    } else {
+      loadMyScore();
     }
     renderSubunitGroups();
+  }
+
+  async function loadMyScore() {
+    try {
+      const score = await callApi('getMyScore', {});
+      document.getElementById('score-quiz').textContent = score.quizScore;
+      document.getElementById('score-activity').textContent = score.activityScore;
+      document.getElementById('score-view').style.display = 'block';
+    } catch (err) {
+      console.warn('점수를 불러오지 못했습니다:', err.message);
+    }
   }
 
   document.getElementById('show-teacher-login').addEventListener('click', (e) => {

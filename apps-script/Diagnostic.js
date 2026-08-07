@@ -24,6 +24,18 @@ function Diagnostic_getQuestions() {
   });
 }
 
+/** action=getDiagnosticAttemptCounts: 이 학생이 각 문항을 지금까지 몇 번 풀었는지 { 문항ID: 횟수 } 로 반환. */
+function Diagnostic_getAttemptCounts(payload, auth) {
+  var rows = SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_RESPONSES) || [];
+  var counts = {};
+  rows.forEach(function (r) {
+    if (String(r['순번']) !== String(auth.seq)) return;
+    var qid = r['문항ID'];
+    counts[qid] = (counts[qid] || 0) + 1;
+  });
+  return counts;
+}
+
 function Diagnostic_submitResponse(payload, auth) {
   var questionId = payload.questionId;
   var selectedChoice = payload.selectedChoice;
@@ -51,6 +63,8 @@ function Diagnostic_submitResponse(payload, auth) {
     정오답: payload.isCorrect ? '정답' : '오답',
     시도번호: attemptNumber,
   });
+
+  ScoreLog_upsert_(auth, '문제풀이', questionId, payload.isCorrect ? POINTS_PER_CORRECT_ANSWER : 0);
 
   return { saved: true, attemptNumber: attemptNumber };
 }

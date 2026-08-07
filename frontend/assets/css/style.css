@@ -26,9 +26,26 @@ body {
 }
 
 .page {
-  max-width: 720px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 32px 20px 64px;
+}
+
+/* 카드를 2단으로 나란히 배치하고 싶을 때 사용(가로 화면 활용) */
+.card-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .card-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+  .card-columns > .card {
+    margin-bottom: 0;
+  }
 }
 
 .card {
@@ -143,11 +160,22 @@ p.muted,
   gap: 10px;
 }
 
+#subunit-groups {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 700px) {
+  #subunit-groups {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .subunit-group {
   padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  margin-bottom: 10px;
   background: var(--color-surface);
 }
 
@@ -168,10 +196,39 @@ p.muted,
   min-width: 130px;
 }
 
+/* 교사가 지금 진행 중(진행중/일괄)으로 지정한 소단원을 학생 화면에서 바로 눈에 띄게 표시 */
+.subunit-group-active {
+  border: 3px solid var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(112, 72, 232, 0.15);
+}
+
 .choice-list {
   display: grid;
   gap: 10px;
   margin: 18px 0;
+}
+
+/* 정오답 피드백 팝업 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 40, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 /* 선택한 보기 바로 아래에 끼워넣는 확신도/피드백 블록 (choice-list의 grid item으로 삽입됨) */

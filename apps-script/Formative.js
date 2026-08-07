@@ -35,6 +35,18 @@ function Formative_getQuestions(payload) {
   });
 }
 
+/** action=getFormativeAttemptCounts: 이 학생이 각 문항을 지금까지 몇 번 풀었는지 { 문항ID: 횟수 } 로 반환. */
+function Formative_getAttemptCounts(payload, auth) {
+  var rows = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_RESPONSES) || [];
+  var counts = {};
+  rows.forEach(function (r) {
+    if (String(r['순번']) !== String(auth.seq)) return;
+    var qid = r['문항ID'];
+    counts[qid] = (counts[qid] || 0) + 1;
+  });
+  return counts;
+}
+
 function Formative_submitResponse(payload, auth) {
   ['subunitId', 'questionId', 'selectedChoice', 'confidence'].forEach(function (k) {
     if (!payload[k]) throw new Error('필수 값 누락: ' + k);
@@ -60,6 +72,8 @@ function Formative_submitResponse(payload, auth) {
     핵심개념: payload.coreConcept || '',
     시도번호: attemptNumber,
   });
+
+  ScoreLog_upsert_(auth, '문제풀이', payload.questionId, payload.isCorrect ? POINTS_PER_CORRECT_ANSWER : 0);
 
   return { saved: true, attemptNumber: attemptNumber };
 }

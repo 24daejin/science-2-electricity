@@ -1,6 +1,6 @@
 /** 진단평가: 진단평가_문항 탭을 SSOT로 읽고, 응답을 진단평가_응답 탭에 기록합니다. */
 
-var DIAGNOSTIC_RESPONSE_HEADERS = ['제출시각', '순번', '이름', '반', '번호', '문항ID', '선택한 보기', '확신도', '정오답'];
+var DIAGNOSTIC_RESPONSE_HEADERS = ['제출시각', '순번', '이름', '반', '번호', '문항ID', '선택한 보기', '확신도', '정오답', '시도번호'];
 
 function Diagnostic_getQuestions() {
   var rows = SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_QUESTIONS);
@@ -33,6 +33,12 @@ function Diagnostic_submitResponse(payload, auth) {
     throw new Error('필수 값 누락(questionId, selectedChoice, confidence)');
   }
 
+  var prior = SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_RESPONSES) || [];
+  var attemptNumber =
+    prior.filter(function (r) {
+      return String(r['순번']) === String(auth.seq) && String(r['문항ID']) === String(questionId);
+    }).length + 1;
+
   SheetUtils_appendRow(SHEET_NAMES.DIAGNOSTIC_RESPONSES, DIAGNOSTIC_RESPONSE_HEADERS, {
     제출시각: new Date(),
     순번: auth.seq || '',
@@ -43,7 +49,8 @@ function Diagnostic_submitResponse(payload, auth) {
     '선택한 보기': selectedChoice,
     확신도: confidence,
     정오답: payload.isCorrect ? '정답' : '오답',
+    시도번호: attemptNumber,
   });
 
-  return { saved: true };
+  return { saved: true, attemptNumber: attemptNumber };
 }

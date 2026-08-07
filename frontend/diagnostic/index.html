@@ -49,7 +49,7 @@
 
   let questions = [];
   let currentIndex = 0;
-  let correctCount = 0;
+  const latestResultByQuestion = {}; // questionId -> 가장 최근 시도의 정답 여부(재도전 시 마지막 결과만 반영)
   let selectedChoice = null; // 1~4
   let selectedConfidence = null; // CONFIDENCE_TAGS 항목
 
@@ -116,9 +116,10 @@
   }
 
   // 1) 학생이 답을 선택하면 -> 그 보기 바로 아래에 확신도 태그를 먼저 보여준다 (정답 공개는 아직 하지 않음)
+  // 언제든 다른(또는 같은) 보기를 다시 눌러 재도전할 수 있다 — 보기 버튼은 절대 비활성화하지 않는다.
   function onChoiceSelected(num, btnEl) {
     selectedChoice = num;
-    choiceButtons().forEach((c) => c.classList.remove('selected'));
+    choiceButtons().forEach((c) => c.classList.remove('selected', 'correct', 'incorrect'));
     btnEl.classList.add('selected');
 
     if (followupEl) followupEl.remove();
@@ -147,16 +148,15 @@
   }
 
   // 2) 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 같은 자리에 보여준다
-  function onConfidenceSelected(tag) {
+  async function onConfidenceSelected(tag) {
     selectedConfidence = tag;
 
     const q = questions[currentIndex];
     const isCorrect = selectedChoice === q.answer;
-    if (isCorrect) correctCount += 1;
+    latestResultByQuestion[q.questionId] = isCorrect;
 
     choiceButtons().forEach((c) => {
       const num = Number(c.dataset.choiceNum);
-      c.disabled = true;
       if (num === q.answer) c.classList.add('correct');
       else if (num === selectedChoice) c.classList.add('incorrect');
     });
@@ -169,21 +169,40 @@
     box.textContent = q.feedback[feedbackKey] || '';
     followupEl.appendChild(box);
 
+    const attemptText = document.createElement('p');
+    attemptText.className = 'muted';
+    attemptText.style.marginTop = '10px';
+    attemptText.id = 'attempt-text';
+    attemptText.textContent = '기록하는 중...';
+    followupEl.appendChild(attemptText);
+
+    const hint = document.createElement('p');
+    hint.className = 'muted';
+    hint.style.marginTop = '4px';
+    hint.textContent = '다시 풀어보고 싶다면 위 보기 중 하나를 다시 눌러보세요.';
+    followupEl.appendChild(hint);
+
     const nextBtn = document.createElement('button');
     nextBtn.className = 'btn block';
-    nextBtn.style.marginTop = '16px';
+    nextBtn.style.marginTop = '12px';
     nextBtn.textContent = '다음 문항';
     nextBtn.addEventListener('click', goToNextQuestion);
     followupEl.appendChild(nextBtn);
 
     followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    callApi('submitDiagnosticResponse', {
-      questionId: q.questionId,
-      selectedChoice: selectedChoice,
-      confidence: tag.label,
-      isCorrect: isCorrect,
-    }).catch((err) => console.warn('응답 저장 실패:', err.message));
+    try {
+      const result = await callApi('submitDiagnosticResponse', {
+        questionId: q.questionId,
+        selectedChoice: selectedChoice,
+        confidence: tag.label,
+        isCorrect: isCorrect,
+      });
+      attemptText.textContent = `이 문항, 이번이 ${result.attemptNumber}번째 풀이예요.`;
+    } catch (err) {
+      console.warn('응답 저장 실패:', err.message);
+      attemptText.textContent = '기록 저장에 실패했어요(선생님께 알려주세요).';
+    }
   }
 
   function goToNextQuestion() {
@@ -191,7 +210,8 @@
     if (currentIndex >= questions.length) {
       els.quiz.style.display = 'none';
       els.done.style.display = 'block';
-      els.doneSummary.textContent = `${questions.length}문항 중 ${correctCount}문항을 맞혔어요.`;
+      const correctCount = Object.values(latestResultByQuestion).filter(Boolean).length;
+      els.doneSummary.textContent = `${questions.length}문항 중 ${correctCount}문항을 맞혔어요. (다시 풀어본 문항은 마지막 결과 기준)`;
     } else {
       renderQuestion();
     }

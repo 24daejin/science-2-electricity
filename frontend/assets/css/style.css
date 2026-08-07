@@ -143,6 +143,31 @@ p.muted,
   gap: 10px;
 }
 
+.subunit-group {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  background: var(--color-surface);
+}
+
+.subunit-group strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 1.02rem;
+}
+
+.subunit-group-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subunit-group-links .btn {
+  flex: 1;
+  min-width: 130px;
+}
+
 .choice-list {
   display: grid;
   gap: 10px;

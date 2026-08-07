@@ -65,7 +65,7 @@
   let currentQuestionId = null;
   let selectedChoice = null;
   let selectedConfidence = null;
-  let answeredQuestionIds = new Set();
+  const latestResultByQuestion = {}; // questionId -> 가장 최근 시도의 정답 여부(재도전 가능, 표시용은 아님)
   let stopPolling = null;
 
   const els = {
@@ -141,7 +141,6 @@
 
     els.choiceList.innerHTML = '';
     followupEl = null;
-    const alreadyAnswered = answeredQuestionIds.has(q.questionId);
 
     q.choices.forEach((choiceText, idx) => {
       const num = idx + 1;
@@ -150,7 +149,6 @@
       btn.type = 'button';
       btn.dataset.choiceNum = String(num);
       btn.textContent = `${num}. ${choiceText}`;
-      btn.disabled = alreadyAnswered;
       btn.addEventListener('click', () => onChoiceSelected(q, num, btn));
       els.choiceList.appendChild(btn);
     });
@@ -160,9 +158,10 @@
     return [...els.choiceList.querySelectorAll('button.choice')];
   }
 
+  // 언제든 다른(또는 같은) 보기를 다시 눌러 재도전할 수 있다 — 보기 버튼은 절대 비활성화하지 않는다.
   function onChoiceSelected(q, num, btnEl) {
     selectedChoice = num;
-    choiceButtons().forEach((c) => c.classList.remove('selected'));
+    choiceButtons().forEach((c) => c.classList.remove('selected', 'correct', 'incorrect'));
     btnEl.classList.add('selected');
 
     if (followupEl) followupEl.remove();
@@ -190,14 +189,14 @@
     followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function onConfidenceSelected(q, tag) {
+  async function onConfidenceSelected(q, tag) {
     selectedConfidence = tag;
 
     const isCorrect = selectedChoice === q.answer;
+    latestResultByQuestion[q.questionId] = isCorrect;
 
     choiceButtons().forEach((c) => {
       const num = Number(c.dataset.choiceNum);
-      c.disabled = true;
       if (num === q.answer) c.classList.add('correct');
       else if (num === selectedChoice) c.classList.add('incorrect');
     });
@@ -210,7 +209,7 @@
     box.textContent = q.feedback[feedbackKey] || '';
     followupEl.appendChild(box);
 
-    // 오답 재학습 연계: 핵심 개념을 바탕으로 파인만 챗봇으로 라우팅 (오답+확신에서 특히 강조)
+    // 오답 재학습 연계: 핵심 개념을 바탕으로 "관련 내용 답하기"로 라우팅 (오답+확신에서 특히 강조)
     if (!isCorrect && q.coreConcept) {
       const chatbotLink = document.createElement('a');
       chatbotLink.className = 'btn block';
@@ -218,8 +217,8 @@
       chatbotLink.style.textDecoration = 'none';
       chatbotLink.textContent =
         tag.bucket === 'confident'
-          ? '확신했는데 틀렸어요 — 파인만 챗봇으로 다시 짚어보기'
-          : '파인만 챗봇으로 이 개념 다시 살펴보기';
+          ? '확신했는데 틀렸어요 — 관련 내용 답하기로 다시 짚어보기'
+          : '관련 내용 답하기로 이 개념 다시 살펴보기';
       const chatUrl = new URL('../chatbot/index.html', window.location.href);
       chatUrl.searchParams.set('concept', q.coreConcept);
       chatUrl.searchParams.set('from', 'formative');
@@ -229,24 +228,40 @@
       followupEl.appendChild(chatbotLink);
     }
 
+    const attemptText = document.createElement('p');
+    attemptText.className = 'muted';
+    attemptText.style.marginTop = '10px';
+    attemptText.textContent = '기록하는 중...';
+    followupEl.appendChild(attemptText);
+
+    const hint = document.createElement('p');
+    hint.className = 'muted';
+    hint.style.marginTop = '4px';
+    hint.textContent = '다시 풀어보고 싶다면 위 보기 중 하나를 다시 눌러보세요.';
+    followupEl.appendChild(hint);
+
     const waitNext = document.createElement('p');
     waitNext.className = 'muted';
-    waitNext.style.marginTop = '12px';
+    waitNext.style.marginTop = '4px';
     waitNext.textContent = '선생님이 다음 문항으로 넘기면 자동으로 이어집니다.';
     followupEl.appendChild(waitNext);
 
     followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    answeredQuestionIds.add(q.questionId);
-
-    callApi('submitFormativeResponse', {
-      subunitId: subunitId,
-      questionId: q.questionId,
-      selectedChoice: selectedChoice,
-      confidence: tag.label,
-      isCorrect: isCorrect,
-      coreConcept: q.coreConcept || '',
-    }).catch((err) => console.warn('응답 저장 실패:', err.message));
+    try {
+      const result = await callApi('submitFormativeResponse', {
+        subunitId: subunitId,
+        questionId: q.questionId,
+        selectedChoice: selectedChoice,
+        confidence: tag.label,
+        isCorrect: isCorrect,
+        coreConcept: q.coreConcept || '',
+      });
+      attemptText.textContent = `이 문항, 이번이 ${result.attemptNumber}번째 풀이예요.`;
+    } catch (err) {
+      console.warn('응답 저장 실패:', err.message);
+      attemptText.textContent = '기록 저장에 실패했어요(선생님께 알려주세요).';
+    }
   }
 
   if (user) init();

@@ -1,7 +1,7 @@
 /** 형성평가: 6개 소단원 공용. 형성평가_문항 탭을 소단원ID로 필터링해서 제공합니다. */
 
 var FORMATIVE_RESPONSE_HEADERS = [
-  '제출시각', '순번', '이름', '반', '번호', '소단원ID', '문항ID', '선택한 보기', '확신도', '정오답', '핵심개념',
+  '제출시각', '순번', '이름', '반', '번호', '소단원ID', '문항ID', '선택한 보기', '확신도', '정오답', '핵심개념', '시도번호',
 ];
 
 function Formative_getQuestions(payload) {
@@ -40,6 +40,12 @@ function Formative_submitResponse(payload, auth) {
     if (!payload[k]) throw new Error('필수 값 누락: ' + k);
   });
 
+  var prior = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_RESPONSES) || [];
+  var attemptNumber =
+    prior.filter(function (r) {
+      return String(r['순번']) === String(auth.seq) && String(r['문항ID']) === String(payload.questionId);
+    }).length + 1;
+
   SheetUtils_appendRow(SHEET_NAMES.FORMATIVE_RESPONSES, FORMATIVE_RESPONSE_HEADERS, {
     제출시각: new Date(),
     순번: auth.seq || '',
@@ -52,7 +58,8 @@ function Formative_submitResponse(payload, auth) {
     확신도: payload.confidence,
     정오답: payload.isCorrect ? '정답' : '오답',
     핵심개념: payload.coreConcept || '',
+    시도번호: attemptNumber,
   });
 
-  return { saved: true };
+  return { saved: true, attemptNumber: attemptNumber };
 }

@@ -63,15 +63,9 @@
     </div>
 
     <div class="card">
-      <h2>형성평가</h2>
-      <p class="muted">소단원을 선택하세요. (선생님이 진행하는 소단원만 활성화됩니다)</p>
-      <div class="subunit-grid" id="formative-subunit-grid"></div>
-    </div>
-
-    <div class="card">
-      <h2>파인만 챗봇</h2>
-      <p class="muted">개념을 스스로 설명해보며 이해를 점검해요. (형성평가 오답 시 자동으로 연결되기도 합니다)</p>
-      <div class="subunit-grid" id="chatbot-concept-grid"></div>
+      <h2>소단원별 학습</h2>
+      <p class="muted">소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.</p>
+      <div id="subunit-groups"></div>
     </div>
 
     <div class="card" id="teacher-card" style="display:none;">
@@ -106,24 +100,19 @@
   ];
 
   // 형성평가_문항 시트의 "소단원명" 값과 정확히 일치해야 합니다(문항 조회는 소단원ID로 하지만,
-  // 챗봇 시작은 이 이름을 개념 문자열로 그대로 사용합니다).
-  const CHATBOT_CONCEPTS = SUBUNITS.map((s) => s.name);
+  // "관련 내용 답하기"(챗봇) 시작은 이 이름을 개념 문자열로 그대로 사용합니다).
 
-  function renderSubunitGrid() {
-    const grid = document.getElementById('formative-subunit-grid');
-    grid.innerHTML = SUBUNITS.map(
-      (s) => `<a class="menu-item" href="formative/index.html?subunit=${s.id}">
+  function renderSubunitGroups() {
+    const container = document.getElementById('subunit-groups');
+    container.innerHTML = SUBUNITS.map(
+      (s) => `
+      <div class="subunit-group">
         <strong>${s.id}. ${s.name}</strong>
-      </a>`
-    ).join('');
-  }
-
-  function renderChatbotGrid() {
-    const grid = document.getElementById('chatbot-concept-grid');
-    grid.innerHTML = CHATBOT_CONCEPTS.map(
-      (c) => `<a class="menu-item" href="chatbot/index.html?concept=${encodeURIComponent(c)}">
-        <strong>${c}</strong>
-      </a>`
+        <div class="subunit-group-links">
+          <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
+          <a class="btn secondary" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>
+        </div>
+      </div>`
     ).join('');
   }
 
@@ -135,8 +124,7 @@
     if (user.role === 'teacher') {
       document.getElementById('teacher-card').style.display = 'block';
     }
-    renderSubunitGrid();
-    renderChatbotGrid();
+    renderSubunitGroups();
   }
 
   document.getElementById('show-teacher-login').addEventListener('click', (e) => {

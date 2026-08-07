@@ -51,6 +51,8 @@
 
   <div class="card">
     <h2>전체 명단 (<span id="roster-count">0</span>명)</h2>
+    <p class="muted">학부모코드가 비어있는 학생에게만 한 번에 코드를 발급합니다(이미 있는 코드는 그대로 둡니다).</p>
+    <button class="btn secondary" id="bulk-parent-code-btn" style="margin-bottom:14px;">학부모코드 일괄 발급</button>
     <div style="overflow-x:auto;">
       <table class="roster-table">
         <thead>
@@ -88,6 +90,7 @@
     ccClassroom: document.getElementById('cc-classroom'),
     ccCode: document.getElementById('cc-code'),
     ccSaveBtn: document.getElementById('cc-save-btn'),
+    bulkParentCodeBtn: document.getElementById('bulk-parent-code-btn'),
   };
 
   function showError(msg) {
@@ -224,6 +227,20 @@
     }
   }
 
+  async function onBulkGenerateParentCodes() {
+    if (!confirm('학부모코드가 비어있는 학생 전원에게 코드를 새로 발급할까요? (이미 코드가 있는 학생은 건드리지 않습니다)')) return;
+    els.bulkParentCodeBtn.disabled = true;
+    try {
+      const result = await callApi('bulkGenerateParentCodes', {});
+      alert(`${result.generated}명에게 학부모코드를 새로 발급했습니다(전체 ${result.totalStudents}명 중).`);
+      await loadRoster();
+    } catch (err) {
+      alert('일괄 발급에 실패했습니다: ' + err.message);
+    } finally {
+      els.bulkParentCodeBtn.disabled = false;
+    }
+  }
+
   async function onDelete(seq) {
     if (!confirm(`${seq}번 학생을 명단에서 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
     try {
@@ -254,6 +271,7 @@
     }
   }
 
+  els.bulkParentCodeBtn.addEventListener('click', onBulkGenerateParentCodes);
   els.saveBtn.addEventListener('click', onSave);
   els.cancelEditBtn.addEventListener('click', clearForm);
   els.ccSaveBtn.addEventListener('click', onSaveClassCode);

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>형성평가 진행 제어 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="page">
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1>형성평가 진행 제어</h1>
+      <p class="muted">시트를 직접 열지 않고, 여기서 문항을 넘기고 세션을 종료할 수 있어요.</p>
+    </div>
+  </div>
+
+  <div id="error-view" class="card error" style="display:none;"></div>
+
+  <div class="card">
+    <h2>소단원 선택</h2>
+    <div class="subunit-grid" id="subunit-grid"></div>
+  </div>
+
+  <div class="card" id="control-card" style="display:none;">
+    <span class="tag" id="control-title"></span>
+    <div class="status-banner" id="status-banner">상태를 불러오는 중...</div>
+
+    <div style="display:flex; gap:8px; margin:12px 0;">
+      <button class="btn secondary" id="end-btn">세션 종료</button>
+      <button class="btn secondary" id="idle-btn">대기 상태로</button>
+    </div>
+
+    <h2>문항 목록</h2>
+    <p class="muted">원하는 문항의 "이 문항 시작"을 누르면 학생 화면이 실시간으로 바뀝니다.</p>
+    <div id="question-list"></div>
+  </div>
+
+  <a class="btn secondary block" href="../index.html" style="margin-top:8px; text-decoration:none;">홈으로 돌아가기</a>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/firebase.js"></script>
+<script>
+  const user = requireTeacher();
+
+  const SUBUNITS = [
+    { id: '1', name: '마찰전기와 정전기 유도' },
+    { id: '2', name: '전류, 전압, 저항 사이의 관계' },
+    { id: '3', name: '저항의 연결' },
+    { id: '4', name: '전기 에너지의 전환과 소비 전력' },
+    { id: '5', name: '전류에 의한 자기장' },
+    { id: '6', name: '전기와 자기가 만드는 힘' },
+  ];
+
+  let currentSubunitId = null;
+  let unsubscribe = null;
+  let currentQuestionId = null;
+  let questionsById = {};
+
+  const els = {
+    error: document.getElementById('error-view'),
+    subunitGrid: document.getElementById('subunit-grid'),
+    controlCard: document.getElementById('control-card'),
+    controlTitle: document.getElementById('control-title'),
+    statusBanner: document.getElementById('status-banner'),
+    questionList: document.getElementById('question-list'),
+    endBtn: document.getElementById('end-btn'),
+    idleBtn: document.getElementById('idle-btn'),
+  };
+
+  function showError(msg) {
+    els.error.style.display = 'block';
+    els.error.textContent = msg;
+  }
+
+  function renderSubunitGrid() {
+    els.subunitGrid.innerHTML = SUBUNITS.map(
+      (s) => `<button class="choice" type="button" data-subunit="${s.id}">${s.id}. ${s.name}</button>`
+    ).join('');
+    els.subunitGrid.querySelectorAll('[data-subunit]').forEach((btn) => {
+      btn.addEventListener('click', () => selectSubunit(btn.dataset.subunit, btn));
+    });
+  }
+
+  async function selectSubunit(subunitId, btnEl) {
+    currentSubunitId = subunitId;
+    [...els.subunitGrid.children].forEach((c) => c.classList.remove('selected'));
+    if (btnEl) btnEl.classList.add('selected');
+
+    const subunit = SUBUNITS.find((s) => s.id === subunitId);
+    els.controlTitle.textContent = `${subunitId}. ${subunit.name}`;
+    els.controlCard.style.display = 'block';
+    els.questionList.innerHTML = '문항을 불러오는 중...';
+
+    if (unsubscribe) unsubscribe();
+
+    try {
+      const questions = await fetchFormativeQuestionsFS(subunitId);
+      questionsById = {};
+      questions.forEach((q) => { questionsById[q.questionId] = q; });
+      renderQuestionList(questions);
+    } catch (err) {
+      showError('문항을 불러오지 못했습니다: ' + err.message);
+      return;
+    }
+
+    unsubscribe = watchSessionState(subunitId, onStateUpdate);
+  }
+
+  function renderQuestionList(questions) {
+    els.questionList.innerHTML = questions
+      .map(
+        (q) => `
+      <div class="menu-item" style="flex-direction:row; align-items:center; justify-content:space-between; margin-bottom:8px;" data-question-row="${q.questionId}">
+        <div>
+          <strong>${q.questionId}</strong>
+          <p class="muted" style="margin:2px 0 0;">${q.question}</p>
+        </div>
+        <button class="btn" style="white-space:nowrap;" data-start="${q.questionId}">이 문항 시작</button>
+      </div>`
+      )
+      .join('');
+
+    els.questionList.querySelectorAll('[data-start]').forEach((btn) => {
+      btn.addEventListener('click', () => startQuestion(btn.dataset.start));
+    });
+  }
+
+  function onStateUpdate(state) {
+    currentQuestionId = state.currentQuestionId;
+    if (state.status === '종료') {
+      els.statusBanner.textContent = '이 소단원은 종료된 상태입니다.';
+    } else if (state.status === '진행중' && state.currentQuestionId) {
+      const q = questionsById[state.currentQuestionId];
+      els.statusBanner.textContent = `진행 중 — ${state.currentQuestionId}${q ? ' · ' + q.question : ''}`;
+    } else {
+      els.statusBanner.textContent = '대기 중 — 아직 학생에게 문항이 표시되지 않았습니다.';
+    }
+
+    [...els.questionList.children].forEach((row) => {
+      const isCurrent = row.dataset.questionRow === currentQuestionId && state.status === '진행중';
+      row.style.borderColor = isCurrent ? 'var(--color-primary)' : '';
+      row.style.background = isCurrent ? '#eef1ff' : '';
+    });
+  }
+
+  async function startQuestion(questionId) {
+    try {
+      await callApi('setSessionState', {
+        subunitId: currentSubunitId,
+        currentQuestionId: questionId,
+        status: '진행중',
+      });
+    } catch (err) {
+      alert('진행 상태 변경에 실패했습니다: ' + err.message);
+    }
+  }
+
+  els.endBtn.addEventListener('click', async () => {
+    if (!currentSubunitId) return;
+    try {
+      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '종료' });
+    } catch (err) {
+      alert('세션 종료에 실패했습니다: ' + err.message);
+    }
+  });
+
+  els.idleBtn.addEventListener('click', async () => {
+    if (!currentSubunitId) return;
+    try {
+      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '대기' });
+    } catch (err) {
+      alert('상태 변경에 실패했습니다: ' + err.message);
+    }
+  });
+
+  if (user) renderSubunitGrid();
+</script>
+</body>
+</html>

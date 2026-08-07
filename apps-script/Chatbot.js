@@ -37,6 +37,65 @@ function Chatbot_buildSummaryPrompt_(concept) {
   ].join('\n');
 }
 
+/** 성취기준 대비 5점 루브릭 채점 프롬프트. 학부모에게도 공개되므로 근거를 명확히 요구합니다. */
+function Chatbot_buildRubricPrompt_(concept, standard) {
+  return [
+    '너는 중학교 과학 교사다. 아래는 학생과 "' + concept + '" 개념에 대해 나눈 소크라테스식 대화 전체 기록이다.',
+    standard ? '이 대화는 성취기준 "' + standard + '"와 관련이 있다.' : '',
+    '이 대화만 근거로 삼아, 학생의 개념 이해도를 5점 만점 루브릭으로 채점하라.',
+    '',
+    '루브릭:',
+    '5점 - 개념을 정확히, 자기 언어로 설명하고 예시나 응용까지 스스로 제시함',
+    '4점 - 개념을 대체로 정확히 설명함(사소한 오류만 있음)',
+    '3점 - 핵심은 이해했으나 설명이 불완전하거나 부분적 오개념이 있음',
+    '2점 - 개념을 단편적으로만 이해, 오개념이 여러 곳에서 드러남',
+    '1점 - 대화만으로는 개념을 이해했다고 보기 어려움',
+    '',
+    '아래 형식만 정확히 지켜서 답하라(다른 말 덧붙이지 마):',
+    '별점: (1~5 중 하나의 정수)',
+    '평가: (이 학생이 무엇을 잘 이해했고 무엇이 부족했는지, 대화 내용을 근거로 3~4문장. 학부모가 읽을 것이므로 정중하고 건설적인 어투)',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Claude의 "별점: N / 평가: ..." 형식 응답을 파싱합니다. */
+function Chatbot_parseRubric_(text) {
+  var starMatch = String(text || '').match(/별점\s*[:：]\s*([1-5])/);
+  var rationaleMatch = String(text || '').match(/평가\s*[:：]\s*([\s\S]*)/);
+  return {
+    stars: starMatch ? Number(starMatch[1]) : null,
+    rationale: rationaleMatch ? rationaleMatch[1].trim() : String(text || '').trim(),
+  };
+}
+
+/** 형성평가_문항에서 이 개념(핵심개념 또는 소단원명)과 연결된 성취기준을 찾습니다. 못 찾으면 빈 문자열. */
+function Chatbot_findStandardForConcept_(concept) {
+  var rows = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_QUESTIONS);
+  if (!rows) return '';
+  var match = rows.find(function (r) {
+    return String(r['핵심개념']).trim() === concept || String(r['소단원명']).trim() === concept;
+  });
+  return match ? match['성취기준'] : '';
+}
+
+var CHATBOT_EVAL_HEADERS = ['세션ID', '순번', '이름', '반', '번호', '개념', '성취기준', '별점', '평가근거', '시각'];
+
+function ChatbotEval_save_(sessionId, concept, standard, rubric, auth) {
+  SheetUtils_appendRow(SHEET_NAMES.CHATBOT_EVAL, CHATBOT_EVAL_HEADERS, {
+    세션ID: sessionId,
+    순번: auth.seq || '',
+    이름: auth.name || '',
+    반: auth.classroom || '',
+    번호: auth.number || '',
+    개념: concept,
+    성취기준: standard || '',
+    별점: rubric.stars || '',
+    평가근거: rubric.rationale || '',
+    시각: new Date(),
+  });
+}
+
 function Chatbot_readHistory_(sessionId) {
   var rows = SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG);
   if (!rows) return [];
@@ -114,6 +173,17 @@ function Chatbot_sendMessage(payload, auth) {
     var summary = Claude_callMessages(Chatbot_buildSummaryPrompt_(concept), messages, 500);
     var summaryTurn = studentTurnNumber + 1;
     Chatbot_appendLog_(sessionId, summaryTurn, '시스템', summary, concept, auth);
+
+    // 성취기준 기준 5점 루브릭 평가(학부모 공개용). 평가가 실패해도 대화 자체는 정상 종료되게 한다.
+    try {
+      var standard = Chatbot_findStandardForConcept_(concept);
+      var rubricText = Claude_callMessages(Chatbot_buildRubricPrompt_(concept, standard), messages, 400);
+      var rubric = Chatbot_parseRubric_(rubricText);
+      ChatbotEval_save_(sessionId, concept, standard, rubric, auth);
+    } catch (evalErr) {
+      // 루브릭 평가 실패는 조용히 무시(로그만 필요하면 여기서 남길 수 있음).
+    }
+
     return {
       sessionId: sessionId,
       concept: concept,

@@ -39,6 +39,12 @@ function requireTeacher_(auth) {
   }
 }
 
+function requireParent_(auth) {
+  if (!auth || auth.role !== 'parent') {
+    throw new Error('학부모만 접근할 수 있는 기능입니다.');
+  }
+}
+
 /** 전각숫자(０-９)를 반각숫자(0-9)로 변환합니다. 학생명단 "번호" 열 표기가 섞여 있어 비교 전 정규화가 필요합니다. */
 function toHalfWidthDigits_(value) {
   return String(value == null ? '' : value)
@@ -48,10 +54,13 @@ function toHalfWidthDigits_(value) {
     });
 }
 
-/** action=login 핸들러. payload.role이 'teacher'면 교사 로그인, 아니면 학생 로그인. */
+/** action=login 핸들러. payload.role로 학생/교사/학부모 로그인을 분기합니다. */
 function Auth_login(payload) {
   if (payload.role === 'teacher') {
     return Auth_loginTeacher_(payload);
+  }
+  if (payload.role === 'parent') {
+    return Auth_loginParent_(payload);
   }
   return Auth_loginStudent_(payload);
 }
@@ -99,6 +108,50 @@ function Auth_loginStudent_(payload) {
     role: 'student',
     seq: student['순번'],
     name: name,
+    classroom: classroom,
+    number: number,
+  };
+  return { authToken: issueAuthToken_(user), user: user };
+}
+
+/**
+ * 학부모 로그인: 반+번호+자녀 이름+학생별 고유 학부모 코드로 확인합니다.
+ * 반 공통 코드가 아니라 학생마다 다른 코드를 쓰므로, 다른 학생의 정보를 볼 수 없습니다.
+ */
+function Auth_loginParent_(payload) {
+  var classroom = toHalfWidthDigits_(payload.classroom);
+  var number = toHalfWidthDigits_(payload.number);
+  var name = String(payload.name || '').trim();
+  var code = String(payload.code || '').trim();
+  if (!classroom || !number || !name || !code) {
+    throw new Error('반, 번호, 자녀 이름, 학부모 코드를 모두 입력해주세요.');
+  }
+
+  var roster = SheetUtils_getRowsCached(SHEET_NAMES.ROSTER, 60);
+  if (roster === null) {
+    throw new Error('학생명단이 아직 준비되지 않았습니다. 담당 선생님께 문의하세요.');
+  }
+
+  var student = roster.find(function (r) {
+    return (
+      toHalfWidthDigits_(r['반']) === classroom &&
+      toHalfWidthDigits_(r['번호']) === number &&
+      String(r['이름'] || '').trim() === name
+    );
+  });
+  if (!student) {
+    throw new Error('반·번호·자녀 이름이 일치하는 학생을 찾을 수 없습니다. 다시 확인하거나 담당 선생님께 문의하세요.');
+  }
+
+  var expectedCode = String(student['학부모코드'] || '').trim();
+  if (!expectedCode || expectedCode !== code) {
+    throw new Error('학부모 코드가 올바르지 않습니다. 담임 선생님께 문의하세요.');
+  }
+
+  var user = {
+    role: 'parent',
+    seq: student['순번'],
+    studentName: name,
     classroom: classroom,
     number: number,
   };

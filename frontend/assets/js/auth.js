@@ -19,6 +19,13 @@ async function loginTeacher(teacherName, teacherPassword) {
   return result.user;
 }
 
+async function loginParent(classroom, number, name, code) {
+  const result = await callApi('login', { role: 'parent', classroom, number, name, code });
+  sessionStorage.setItem('authToken', result.authToken);
+  sessionStorage.setItem('user', JSON.stringify(result.user));
+  return result.user;
+}
+
 /** 현재 로그인한 사용자 정보를 반환합니다(없으면 null). { role, seq?, name, classroom?, number? } */
 function getCurrentUser() {
   const raw = sessionStorage.getItem('user');

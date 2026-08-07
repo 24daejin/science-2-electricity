@@ -54,7 +54,7 @@
     <div style="overflow-x:auto;">
       <table class="roster-table">
         <thead>
-          <tr><th>순번</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>학적</th><th></th></tr>
+          <tr><th>순번</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>학적</th><th>학부모코드</th><th></th></tr>
         </thead>
         <tbody id="roster-tbody"></tbody>
       </table>
@@ -131,6 +131,10 @@
         <td>${s.name || ''}</td>
         <td>${s.enrollment || ''}</td>
         <td style="white-space:nowrap;">
+          <code>${s.parentCode || '(없음)'}</code>
+          <button class="btn secondary" data-regen="${s.seq}" style="padding:4px 8px; font-size:0.78rem; margin-left:4px;">재발급</button>
+        </td>
+        <td style="white-space:nowrap;">
           <button class="btn secondary" data-edit="${s.seq}" style="padding:6px 12px; font-size:0.85rem;">수정</button>
           <button class="btn secondary" data-delete="${s.seq}" style="padding:6px 12px; font-size:0.85rem; color:#e03131; border-color:#e03131;">삭제</button>
         </td>
@@ -146,6 +150,9 @@
     });
     els.tbody.querySelectorAll('[data-delete]').forEach((btn) => {
       btn.addEventListener('click', () => onDelete(btn.dataset.delete));
+    });
+    els.tbody.querySelectorAll('[data-regen]').forEach((btn) => {
+      btn.addEventListener('click', () => onRegenerateParentCode(btn.dataset.regen));
     });
   }
 
@@ -202,6 +209,18 @@
       alert('저장에 실패했습니다: ' + err.message);
     } finally {
       els.saveBtn.disabled = false;
+    }
+  }
+
+  async function onRegenerateParentCode(seq) {
+    const s = roster.find((r) => String(r.seq) === seq);
+    if (!confirm(`${s ? s.name : seq} 학생의 학부모 코드를 새로 발급할까요? 기존 코드는 즉시 무효화됩니다.`)) return;
+    try {
+      const result = await callApi('regenerateParentCode', { seq });
+      alert(`새 학부모 코드: ${result.parentCode}\n학부모님께 이 코드와 학부모 로그인 페이지 링크를 전달해주세요.`);
+      await loadRoster();
+    } catch (err) {
+      alert('재발급에 실패했습니다: ' + err.message);
     }
   }
 

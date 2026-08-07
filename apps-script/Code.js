@@ -57,10 +57,14 @@ function getRoutes_() {
     listRoster: { fn: Roster_list, auth: true },
     upsertRosterEntry: { fn: Roster_upsert, auth: true },
     deleteRosterEntry: { fn: Roster_delete, auth: true },
+    regenerateParentCode: { fn: Roster_regenerateParentCode, auth: true },
 
     // 교사 대시보드 (교사 전용, 핸들러 내부에서 검사)
     getClassDashboard: { fn: Dashboard_getClassSummary, auth: true },
     getStudentDetail: { fn: Dashboard_getStudentDetail, auth: true },
+
+    // 학부모 포털 (학부모 전용, 본인 자녀만 조회 가능)
+    getParentView: { fn: Parent_getView, auth: true },
   };
 }
 

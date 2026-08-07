@@ -38,7 +38,7 @@ function getRoutes_() {
     getMyScore: { fn: Score_getMine, auth: true },
     getClassScores: { fn: Score_getClassScores, auth: true },
 
-    // 파인만 챗봇
+    // "관련 내용 답하기" 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },
     sendChatbotMessage: { fn: Chatbot_sendMessage, auth: true },
 

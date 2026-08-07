@@ -48,7 +48,7 @@ frontend/           GitHub Pages에 그대로 배포되는 정적 사이트
   index.html           로그인 진입점 (학생/교사 자체 로그인)
   diagnostic/           진단평가 웹앱
   formative/             형성평가 웹앱 (소단원ID 1~6 공용)
-  chatbot/                파인만 챗봇
+  chatbot/                "관련 내용 답하기"(소크라테스식 챗봇)
   roster/                  교사용 학생명단·반코드 관리
   assets/js/            config.js(설정) · auth.js(로그인/세션) · api.js(Apps Script 호출 공통) ·
                          firebase.js(Firestore 읽기: 문항·세션 상태 실시간 구독) ·
@@ -91,7 +91,7 @@ docs/                배포/운영 가이드
 - [x] 진단평가 웹앱
 - [x] 형성평가 웹앱 (6개 소단원 공용) — 실제 문항 데이터 반영, 헤더 행 수정 완료
 - [x] 오답 재학습 → 챗봇 라우팅
-- [x] 파인만 챗봇
+- [x] "관련 내용 답하기"(소크라테스식 챗봇) 구현
 - [x] 교사 주도 실시간 진행 제어(Firestore 실시간 리스너 + 앱 내 진행 제어 화면) + 이탈 감지
 - [x] 명단 관리 CRUD + 반코드 관리 — 실제 명단(262명) 반영
 - [x] 배포 가이드 문서

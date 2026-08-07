@@ -7,7 +7,7 @@
 window.APP_CONFIG = {
   // apps-script 배포 후 발급되는 웹앱 URL (로그인/응답저장/챗봇 등 "쓰기"에 사용)
   // 예: https://script.google.com/macros/s/AKfycb.../exec
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzDRNV2VxFjt8HZ2dz71wmTppzWLFR5OV3AnPd4hj6D1FY-QnPqecRwHpVem4AB2K_9/exec",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwn6CcqLstciuRL59GbmEeaNJ1-gZO1ibUAlJ1xWnqxBkYmvKU67NDRs_LJ6vL2QpJW/exec",
 
   // Firebase 프로젝트 설정 (문항 조회·세션 상태 실시간 구독 등 "읽기"에 사용).
   // Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 그대로 복사해 채우세요.

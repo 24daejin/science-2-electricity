@@ -109,19 +109,38 @@
   // "관련 내용 답하기"(챗봇) 시작은 이 이름을 개념 문자열로 그대로 사용합니다).
 
   let stopSessionWatch = null;
+  let subunitResources = [];
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  async function loadSubunitResources() {
+    try {
+      subunitResources = await callApi('listSubunitResources', {});
+    } catch (err) {
+      console.warn('추가 자료를 불러오지 못했습니다:', err.message);
+      subunitResources = [];
+    }
+  }
 
   function renderSubunitGroups() {
     const container = document.getElementById('subunit-groups');
-    container.innerHTML = SUBUNITS.map(
-      (s) => `
+    container.innerHTML = SUBUNITS.map((s) => {
+      const extraLinks = subunitResources
+        .filter((r) => r.subunitId === s.id)
+        .map((r) => `<a class="btn secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="text-decoration:none;">${escapeHtml(r.name)}</a>`)
+        .join('');
+      return `
       <div class="subunit-group" data-subunit-id="${s.id}">
         <strong>${s.id}. ${s.name}</strong>
         <div class="subunit-group-links">
           <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
           <a class="btn secondary" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>
+          ${extraLinks}
         </div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
 
     if (stopSessionWatch) stopSessionWatch();
     stopSessionWatch = watchAllSessionStates((byId) => {
@@ -145,7 +164,7 @@
     } else {
       loadMyScore();
     }
-    renderSubunitGroups();
+    loadSubunitResources().then(renderSubunitGroups);
   }
 
   async function loadMyScore() {

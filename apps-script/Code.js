@@ -60,6 +60,11 @@ function getRoutes_() {
     regenerateParentCode: { fn: Roster_regenerateParentCode, auth: true },
     bulkGenerateParentCodes: { fn: Roster_bulkGenerateParentCodes, auth: true },
 
+    // 소단원별 추가 자료(웹앱/링크) — 조회는 학생/교사 모두, 관리는 교사 전용(핸들러 내부에서 검사)
+    listSubunitResources: { fn: SubunitResource_list, auth: true },
+    upsertSubunitResource: { fn: SubunitResource_upsert, auth: true },
+    deleteSubunitResource: { fn: SubunitResource_delete, auth: true },
+
     // 교사 대시보드 (교사 전용, 핸들러 내부에서 검사)
     getClassDashboard: { fn: Dashboard_getClassSummary, auth: true },
     getStudentDetail: { fn: Dashboard_getStudentDetail, auth: true },

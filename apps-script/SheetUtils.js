@@ -15,6 +15,7 @@ var SHEET_NAMES = {
   SESSION_STATE: '세션_상태',
   SCORE_LOG: '점수_로그',
   CHATBOT_EVAL: '챗봇_평가',
+  SUBUNIT_RESOURCES: '소단원_자료',
 };
 
 /**

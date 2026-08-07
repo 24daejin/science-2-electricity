@@ -339,6 +339,15 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* 대시보드 소단원별 정답률 막대그래프(SVG) 컨테이너 */
+.bar-chart-wrap {
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
 table.roster-table {
   width: 100%;
   border-collapse: collapse;

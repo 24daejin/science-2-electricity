@@ -2,7 +2,7 @@
 
 세 부분을 순서대로 설정합니다: **① Apps Script 백엔드 → ② GitHub Pages 프론트엔드 → ③ 프론트-백엔드 연결**.
 
-> 인증은 Google OAuth(GIS)가 아니라 자체 로그인(학번+이름+반코드 / 교사 이름+비밀번호)입니다. Cloud Console 설정이 필요 없습니다. Cloud Console 접근이 나중에 가능해지면 [OAUTH_SETUP.md](OAUTH_SETUP.md)를 참고해 GIS로 전환할 수 있습니다.
+> 인증은 Google OAuth(GIS)가 아니라 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호)입니다. Cloud Console 설정이 필요 없습니다. Cloud Console 접근이 나중에 가능해지면 [OAUTH_SETUP.md](OAUTH_SETUP.md)를 참고해 GIS로 전환할 수 있습니다.
 
 ## ① Apps Script 백엔드 배포
 
@@ -68,7 +68,8 @@ window.APP_CONFIG = {
 
 - [ ] 웹 앱 URL을 직접 열면 `{"ok":true,...}` JSON이 보인다.
 - [ ] GitHub Pages 주소에서 로그인 화면(학생/교사 폼)이 뜬다.
-- [ ] 학생명단·반코드 탭에 테스트 학생 1명과 반코드를 넣고, 학번+이름+코드로 로그인하면 통과된다. 이름을 틀리게 입력하면 거부된다.
+- [ ] 반코드 탭에 반별 코드를 넣고, 학생명단에 있는 반+번호+이름+코드로 로그인하면 통과된다. 이름을 틀리게 입력하면 거부된다.
+- [ ] 형성평가_문항 탭 1행(헤더)이 [DATA_MODEL.md](DATA_MODEL.md)에 적힌 15개 컬럼 순서와 정확히 일치한다.
 - [ ] 교사 계정(TEACHER_ACCOUNTS)으로 로그인하면 홈 화면에 "학생명단 · 반코드 관리" 메뉴가 보인다.
 - [ ] 진단평가에서 **보기 선택 → 확신도 3종 선택(이 시점까지 정오답 비공개) → 정답 공개+피드백** 순서로 화면이 넘어간다.
 - [ ] 브라우저 개발자도구 Network 탭에서 Apps Script로 가는 요청의 Content-Type이 `text/plain`이고, OPTIONS(preflight) 요청이 발생하지 않는다.

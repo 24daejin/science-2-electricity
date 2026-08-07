@@ -5,17 +5,13 @@
  * - 전체 대화를 챗봇_로그에 저장합니다. 대화 상태는 챗봇_로그를 진실 공급원으로 재구성합니다(클라이언트 조작 방지).
  */
 
-var CHATBOT_LOG_HEADERS = ['세션ID', '턴번호', '발화자', '메시지', '개념', '학번', '이름', '시각'];
+var CHATBOT_LOG_HEADERS = ['세션ID', '턴번호', '발화자', '메시지', '개념', '순번', '이름', '반', '번호', '시각'];
 var CHATBOT_MAX_TURNS = 5;
 
-var FEYNMAN_CONCEPTS = [
-  '마찰전기와 정전기 유도',
-  '옴의 법칙과 저항',
-  '직렬·병렬 회로',
-  '전기에너지 전환과 소비전력',
-  '자기장',
-  '전자기력과 전동기',
-];
+// 개념은 더 이상 고정된 6개 화이트리스트로 검증하지 않습니다. 형성평가_문항의 "핵심개념" 값은
+// 문항별 세부 개념(예: "원자의 구조")이라 6개보다 훨씬 다양하고, 시트가 SSOT이므로
+// 코드에 하드코딩된 목록과 어긋나면 안 되기 때문입니다. 홈 화면의 "직접 선택" 진입점만
+// 6개 소단원명을 안내용으로 보여주고, 실제로는 어떤 개념 문자열이 와도 챗봇을 시작합니다.
 
 function Chatbot_buildSystemPrompt_(concept) {
   return [
@@ -56,16 +52,18 @@ function Chatbot_appendLog_(sessionId, turnNumber, speaker, message, concept, au
     발화자: speaker,
     메시지: message,
     개념: concept,
-    학번: auth.studentId || '',
+    순번: auth.seq || '',
     이름: auth.name || '',
+    반: auth.classroom || '',
+    번호: auth.number || '',
     시각: new Date(),
   });
 }
 
 /** action=startChatbotSession: 새 세션을 만들고 첫 질문을 생성합니다. */
 function Chatbot_start(payload, auth) {
-  var concept = payload.concept;
-  if (FEYNMAN_CONCEPTS.indexOf(concept) === -1) throw new Error('알 수 없는 개념입니다: ' + concept);
+  var concept = String(payload.concept || '').trim();
+  if (!concept) throw new Error('concept이 필요합니다.');
 
   var sessionId = Utilities.getUuid();
   var systemPrompt = Chatbot_buildSystemPrompt_(concept);

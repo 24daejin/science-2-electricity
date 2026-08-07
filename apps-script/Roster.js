@@ -1,9 +1,10 @@
 /**
  * 학생명단 CRUD + 반 공통 로그인코드 관리 (모두 교사 전용).
+ * 학생명단 실제 컬럼: 순번(고유키, 자동 부여), 학년, 반, 번호, 이름, 학적(재학/그 외).
  * 학생명단/반코드 탭이 아직 마스터 시트에 없다면, 최초 호출 시 헤더와 함께 자동 생성합니다.
  */
 
-var ROSTER_HEADERS = ['학번', '이름', '반', '구글 계정 이메일', '상태', '비고'];
+var ROSTER_HEADERS = ['순번', '학년', '반', '번호', '이름', '학적'];
 var CLASS_CODE_HEADERS = ['반', '코드', '수정시각', '수정자'];
 
 function Roster_list(payload, auth) {
@@ -13,22 +14,28 @@ function Roster_list(payload, auth) {
     SheetUtils_ensureSheet(SHEET_NAMES.ROSTER, ROSTER_HEADERS);
     rows = [];
   }
-  return rows.map(function (r) {
-    return {
-      studentId: r['학번'],
-      name: r['이름'],
-      classroom: r['반'],
-      email: r['구글 계정 이메일'],
-      status: r['상태'],
-      note: r['비고'],
-    };
-  });
+  return rows
+    .map(function (r) {
+      return {
+        seq: r['순번'],
+        grade: r['학년'],
+        classroom: r['반'],
+        number: r['번호'],
+        name: r['이름'],
+        enrollment: r['학적'],
+      };
+    })
+    .sort(function (a, b) { return Number(a.seq) - Number(b.seq); });
 }
 
 function Roster_upsert(payload, auth) {
   requireTeacher_(auth);
-  var studentId = String(payload.studentId || '').trim();
-  if (!studentId) throw new Error('학번은 필수입니다.');
+  var name = String(payload.name || '').trim();
+  var classroom = String(payload.classroom || '').trim();
+  var number = String(payload.number || '').trim();
+  if (!name || !classroom || !number) {
+    throw new Error('반, 번호, 이름은 필수입니다.');
+  }
 
   var rows = SheetUtils_getRows(SHEET_NAMES.ROSTER);
   if (rows === null) {
@@ -36,36 +43,43 @@ function Roster_upsert(payload, auth) {
     rows = [];
   }
 
-  var existing = rows.find(function (r) { return String(r['학번']).trim() === studentId; });
+  var seq = payload.seq ? String(payload.seq).trim() : '';
+  var existing = seq ? rows.find(function (r) { return String(r['순번']).trim() === seq; }) : null;
+
+  if (!seq) {
+    var maxSeq = rows.reduce(function (max, r) { return Math.max(max, Number(r['순번']) || 0); }, 0);
+    seq = String(maxSeq + 1);
+  }
+
   var rowObj = {
-    학번: studentId,
-    이름: payload.name || '',
-    반: payload.classroom || '',
-    '구글 계정 이메일': payload.email || '',
-    상태: payload.status || '활성',
-    비고: payload.note || '',
+    순번: seq,
+    학년: payload.grade || '2',
+    반: classroom,
+    번호: number,
+    이름: name,
+    학적: payload.enrollment || '재학',
   };
 
   if (existing) {
     SheetUtils_updateRow(SHEET_NAMES.ROSTER, ROSTER_HEADERS, existing._row, rowObj);
-    return { updated: true, studentId: studentId };
+    return { updated: true, seq: seq };
   }
   SheetUtils_appendRow(SHEET_NAMES.ROSTER, ROSTER_HEADERS, rowObj);
-  return { created: true, studentId: studentId };
+  return { created: true, seq: seq };
 }
 
 function Roster_delete(payload, auth) {
   requireTeacher_(auth);
-  var studentId = String(payload.studentId || '').trim();
-  if (!studentId) throw new Error('학번은 필수입니다.');
+  var seq = String(payload.seq || '').trim();
+  if (!seq) throw new Error('순번은 필수입니다.');
 
   var rows = SheetUtils_getRows(SHEET_NAMES.ROSTER);
   if (!rows) throw new Error('학생명단 시트가 없습니다.');
-  var existing = rows.find(function (r) { return String(r['학번']).trim() === studentId; });
-  if (!existing) throw new Error('해당 학번을 찾을 수 없습니다: ' + studentId);
+  var existing = rows.find(function (r) { return String(r['순번']).trim() === seq; });
+  if (!existing) throw new Error('해당 순번을 찾을 수 없습니다: ' + seq);
 
   SheetUtils_deleteRow(SHEET_NAMES.ROSTER, existing._row);
-  return { deleted: true, studentId: studentId };
+  return { deleted: true, seq: seq };
 }
 
 /** action=listClassCodes: 반별 로그인코드 목록 (교사 전용) */

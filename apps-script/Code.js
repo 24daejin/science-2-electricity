@@ -6,7 +6,7 @@
  * (Content-Type: application/json을 쓰면 브라우저가 preflight(OPTIONS)를 먼저 보내는데,
  *  Apps Script 웹앱은 OPTIONS 메서드를 지원하지 않아 요청이 실패합니다. 절대 쓰지 마세요.)
  *
- * 인증: Google OAuth 없이 자체 로그인(학번+이름+반코드 / 교사 이름+비밀번호)을 사용합니다.
+ * 인증: Google OAuth 없이 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호)을 사용합니다.
  * 로그인 성공 시 발급되는 authToken(CacheService 기반, 6시간 유효)을 이후 요청마다 함께 보냅니다.
  */
 

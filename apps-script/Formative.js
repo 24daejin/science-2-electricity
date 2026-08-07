@@ -1,7 +1,7 @@
 /** 형성평가: 6개 소단원 공용. 형성평가_문항 탭을 소단원ID로 필터링해서 제공합니다. */
 
 var FORMATIVE_RESPONSE_HEADERS = [
-  '제출시각', '학번', '이름', '소단원ID', '문항ID', '선택한 보기', '확신도', '정오답', '핵심개념',
+  '제출시각', '순번', '이름', '반', '번호', '소단원ID', '문항ID', '선택한 보기', '확신도', '정오답', '핵심개념',
 ];
 
 function Formative_getQuestions(payload) {
@@ -20,7 +20,7 @@ function Formative_getQuestions(payload) {
       questionId: r['문항ID'],
       subunitId: r['소단원ID'],
       subunitName: r['소단원명'],
-      coreConcept: r['핵심 개념'],
+      coreConcept: r['핵심개념'],
       standard: r['성취기준'],
       question: r['문제'],
       choices: [r['보기1'], r['보기2'], r['보기3'], r['보기4']],
@@ -42,8 +42,10 @@ function Formative_submitResponse(payload, auth) {
 
   SheetUtils_appendRow(SHEET_NAMES.FORMATIVE_RESPONSES, FORMATIVE_RESPONSE_HEADERS, {
     제출시각: new Date(),
-    학번: auth.studentId || '',
+    순번: auth.seq || '',
     이름: auth.name || '',
+    반: auth.classroom || '',
+    번호: auth.number || '',
     소단원ID: payload.subunitId,
     문항ID: payload.questionId,
     '선택한 보기': payload.selectedChoice,

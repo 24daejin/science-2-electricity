@@ -1,13 +1,16 @@
 /**
  * 자체 로그인(Google OAuth 미사용) + 세션 토큰 관리.
  *
- * 배경: 학교 계정이 교육청 정책으로 Google Cloud Console 접근이 차단되어
- * GIS(OAuth 2.0 클라이언트)를 발급받을 수 없습니다. 대신:
- *  - 학생: 학번 + 이름 + 반 공통 로그인코드(반코드 탭에서 교사가 관리)
+ * 배경: 학교 계정이 교육청 정책으로 Google Cloud Console 접근이 차단되어(개인 계정으로도
+ * 동일하게 막혀 있음을 확인함) GIS(OAuth 2.0 클라이언트)를 발급받을 수 없습니다. 대신:
+ *  - 학생: 반 + 번호 + 이름 + 반 공통 로그인코드(반코드 탭에서 교사가 관리)
  *  - 교사: 이름 + 비밀번호(스크립트 속성 TEACHER_ACCOUNTS)
  * 로 로그인하고, 서버가 발급한 authToken을 이후 모든 요청에 함께 보냅니다.
  * (Google 계정 자체가 신원을 보증해주지 않으므로, 같은 반 공통 코드를 아는 학생끼리는
- *  서로 다른 학번으로 로그인할 수 있다는 한계가 있습니다 — 교실 내 활동임을 감안해 채택.)
+ *  서로 다른 반/번호로 로그인할 수 있다는 한계가 있습니다 — 교실 내 활동임을 감안해 채택.)
+ *
+ * 학생명단 탭의 "번호" 열은 1~7이 전각숫자(１２３…), 8 이후가 반각숫자로 섞여 입력되어 있어
+ * 비교 전에 전각숫자를 반각숫자로 정규화합니다(toHalfWidthDigits_).
  */
 
 var AUTH_CACHE_PREFIX = 'auth_';
@@ -36,6 +39,15 @@ function requireTeacher_(auth) {
   }
 }
 
+/** 전각숫자(０-９)를 반각숫자(0-9)로 변환합니다. 학생명단 "번호" 열 표기가 섞여 있어 비교 전 정규화가 필요합니다. */
+function toHalfWidthDigits_(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .replace(/[０-９]/g, function (ch) {
+      return String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
+    });
+}
+
 /** action=login 핸들러. payload.role이 'teacher'면 교사 로그인, 아니면 학생 로그인. */
 function Auth_login(payload) {
   if (payload.role === 'teacher') {
@@ -45,11 +57,12 @@ function Auth_login(payload) {
 }
 
 function Auth_loginStudent_(payload) {
-  var studentId = String(payload.studentId || '').trim();
+  var classroom = toHalfWidthDigits_(payload.classroom);
+  var number = toHalfWidthDigits_(payload.number);
   var name = String(payload.name || '').trim();
   var code = String(payload.code || '').trim();
-  if (!studentId || !name || !code) {
-    throw new Error('학번, 이름, 코드를 모두 입력해주세요.');
+  if (!classroom || !number || !name || !code) {
+    throw new Error('반, 번호, 이름, 코드를 모두 입력해주세요.');
   }
 
   var roster = SheetUtils_getRows(SHEET_NAMES.ROSTER);
@@ -57,20 +70,24 @@ function Auth_loginStudent_(payload) {
     throw new Error('학생명단이 아직 준비되지 않았습니다. 담당 선생님께 문의하세요.');
   }
 
-  var student = roster.find(function (r) { return String(r['학번']).trim() === studentId; });
+  var student = roster.find(function (r) {
+    return (
+      toHalfWidthDigits_(r['반']) === classroom &&
+      toHalfWidthDigits_(r['번호']) === number &&
+      String(r['이름'] || '').trim() === name
+    );
+  });
   if (!student) {
-    throw new Error('등록되지 않은 학번입니다. 학번을 다시 확인하거나 담당 선생님께 문의하세요.');
+    throw new Error('반·번호·이름이 일치하는 학생을 찾을 수 없습니다. 다시 확인하거나 담당 선생님께 문의하세요.');
   }
-  if (String(student['상태'] || '').trim() === '비활성') {
-    throw new Error('현재 비활성 상태인 계정입니다. 담당 선생님께 문의하세요.');
-  }
-  if (String(student['이름'] || '').trim() !== name) {
-    throw new Error('학번과 이름이 일치하지 않습니다. 다시 확인해주세요.');
+  if (String(student['학적'] || '').trim() !== '재학') {
+    throw new Error('현재 재학 상태가 아닌 것으로 등록되어 있습니다. 담당 선생님께 문의하세요.');
   }
 
-  var classroom = String(student['반'] || '').trim();
   var classCodes = SheetUtils_getRows(SHEET_NAMES.CLASS_CODES);
-  var codeRow = classCodes ? classCodes.find(function (r) { return String(r['반']).trim() === classroom; }) : null;
+  var codeRow = classCodes
+    ? classCodes.find(function (r) { return toHalfWidthDigits_(r['반']) === classroom; })
+    : null;
   if (!codeRow || String(codeRow['코드'] || '').trim() === '') {
     throw new Error('아직 이 반의 로그인 코드가 설정되지 않았습니다. 담당 선생님께 문의하세요.');
   }
@@ -78,7 +95,13 @@ function Auth_loginStudent_(payload) {
     throw new Error('코드가 올바르지 않습니다. 선생님이 안내한 코드를 다시 확인해주세요.');
   }
 
-  var user = { role: 'student', studentId: studentId, name: name, classroom: classroom };
+  var user = {
+    role: 'student',
+    seq: student['순번'],
+    name: name,
+    classroom: classroom,
+    number: number,
+  };
   return { authToken: issueAuthToken_(user), user: user };
 }
 

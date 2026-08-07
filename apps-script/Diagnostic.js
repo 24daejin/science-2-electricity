@@ -1,6 +1,6 @@
 /** 진단평가: 진단평가_문항 탭을 SSOT로 읽고, 응답을 진단평가_응답 탭에 기록합니다. */
 
-var DIAGNOSTIC_RESPONSE_HEADERS = ['제출시각', '학번', '이름', '문항ID', '선택한 보기', '확신도', '정오답'];
+var DIAGNOSTIC_RESPONSE_HEADERS = ['제출시각', '순번', '이름', '반', '번호', '문항ID', '선택한 보기', '확신도', '정오답'];
 
 function Diagnostic_getQuestions() {
   var rows = SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_QUESTIONS);
@@ -35,8 +35,10 @@ function Diagnostic_submitResponse(payload, auth) {
 
   SheetUtils_appendRow(SHEET_NAMES.DIAGNOSTIC_RESPONSES, DIAGNOSTIC_RESPONSE_HEADERS, {
     제출시각: new Date(),
-    학번: auth.studentId || '',
+    순번: auth.seq || '',
     이름: auth.name || '',
+    반: auth.classroom || '',
+    번호: auth.number || '',
     문항ID: questionId,
     '선택한 보기': selectedChoice,
     확신도: confidence,

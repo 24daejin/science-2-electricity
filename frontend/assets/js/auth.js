@@ -1,12 +1,12 @@
 /**
- * 자체 로그인(학번+이름+반코드 / 교사 이름+비밀번호) 공통 로직.
+ * 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호) 공통 로직.
  * Google Cloud Console 접근이 교육청 정책으로 막혀 GIS(OAuth) 대신 이 방식을 씁니다.
  * 로그인 성공 시 서버가 발급하는 authToken(6시간 유효)을 세션스토리지에 저장하고,
  * 이후 모든 API 호출에 함께 보냅니다.
  */
 
-async function loginStudent(studentId, name, code) {
-  const result = await callApi('login', { role: 'student', studentId, name, code });
+async function loginStudent(classroom, number, name, code) {
+  const result = await callApi('login', { role: 'student', classroom, number, name, code });
   sessionStorage.setItem('authToken', result.authToken);
   sessionStorage.setItem('user', JSON.stringify(result.user));
   return result.user;
@@ -19,7 +19,7 @@ async function loginTeacher(teacherName, teacherPassword) {
   return result.user;
 }
 
-/** 현재 로그인한 사용자 정보를 반환합니다(없으면 null). { role, studentId?, name, classroom? } */
+/** 현재 로그인한 사용자 정보를 반환합니다(없으면 null). { role, seq?, name, classroom?, number? } */
 function getCurrentUser() {
   const raw = sessionStorage.getItem('user');
   return raw ? JSON.parse(raw) : null;

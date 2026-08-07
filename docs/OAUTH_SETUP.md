@@ -1,6 +1,6 @@
 # (선택/추후용) GCP OAuth 클라이언트(GIS) 설정 가이드
 
-> **현재 이 플랫폼은 이 문서의 절차를 쓰지 않습니다.** 담당 교사 계정이 교육청 정책으로 Google Cloud Console 자체에 접근할 수 없어(개인 Gmail 계정으로 시도해도 동일하게 막혀 있음 확인됨), 대신 자체 로그인(학번+이름+반코드 / 교사 이름+비밀번호)으로 전환했습니다 — 자세한 내용은 [README.md](../README.md)와 [DEPLOY.md](DEPLOY.md)를 참고하세요.
+> **현재 이 플랫폼은 이 문서의 절차를 쓰지 않습니다.** 담당 교사 계정이 교육청 정책으로 Google Cloud Console 자체에 접근할 수 없어, 대신 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호)으로 전환했습니다 — 자세한 내용은 [README.md](../README.md)와 [DEPLOY.md](DEPLOY.md)를 참고하세요.
 >
 > 이 문서는 나중에 정책이 바뀌거나, Cloud Console 접근 권한이 있는 분(학교 IT 담당 부서 등)을 통해 GIS로 전환하고 싶을 때를 위해 남겨둡니다.
 
@@ -31,7 +31,7 @@ Google Identity Services(GIS)로 학생 로그인을 학교 구글 워크스페�
 6. 만들기를 누르면 **클라이언트 ID**(`....apps.googleusercontent.com` 형태)가 발급됩니다. 클라이언트 보안 비밀(secret)은 이 방식에서는 사용하지 않습니다.
 
 ## 4. 발급받은 클라이언트 ID로 실제 전환하기
-클라이언트 ID를 발급받았다고 바로 전환되지는 않습니다 — 현재 코드베이스는 자체 로그인(학번+이름+반코드) 방식으로 되어 있으므로, GIS로 되돌리려면 코드도 함께 되돌려야 합니다:
+클라이언트 ID를 발급받았다고 바로 전환되지는 않습니다 — 현재 코드베이스는 자체 로그인(반+번호+이름+반코드) 방식으로 되어 있으므로, GIS로 되돌리려면 코드도 함께 되돌려야 합니다:
 
 1. `frontend/index.html` / `frontend/assets/js/auth.js`를 GIS 로그인 버튼 방식으로 복원(과거 구현은 git 히스토리 또는 담당 개발자에게 요청).
 2. `frontend/assets/js/config.js`에 `GOOGLE_CLIENT_ID`, `SCHOOL_DOMAIN` 값 추가.

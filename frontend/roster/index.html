@@ -20,7 +20,7 @@
 
   <div class="card">
     <h2>반별 로그인 코드</h2>
-    <p class="muted">학생은 학번+이름+이 코드로 로그인합니다. 코드를 바꾸면 즉시 반영되니, 수업 시작 시 칠판에 적어 안내하세요.</p>
+    <p class="muted">학생은 반+번호+이름+이 코드로 로그인합니다. 코드를 바꾸면 즉시 반영되니, 수업 시작 시 칠판에 적어 안내하세요.</p>
     <div id="class-code-list"></div>
     <div class="form-grid" style="margin-top:12px;">
       <input id="cc-classroom" placeholder="반 (예: 3)" />
@@ -32,15 +32,15 @@
   <div class="card">
     <h2 id="form-title">학생 추가</h2>
     <div class="form-grid">
-      <input id="f-studentId" placeholder="학번 (예: 20301)" />
+      <input id="f-grade" placeholder="학년 (예: 2)" value="2" inputmode="numeric" />
+      <input id="f-classroom" placeholder="반 (예: 3)" inputmode="numeric" />
+      <input id="f-number" placeholder="번호 (예: 15)" inputmode="numeric" />
       <input id="f-name" placeholder="이름" />
-      <input id="f-classroom" placeholder="반 (예: 3)" />
-      <select id="f-status">
-        <option value="활성">활성</option>
-        <option value="비활성">비활성</option>
+      <select id="f-enrollment">
+        <option value="재학">재학</option>
+        <option value="휴학">휴학</option>
+        <option value="전출">전출</option>
       </select>
-      <input id="f-note" placeholder="비고 (선택)" />
-      <input id="f-email" placeholder="이메일 (선택, 기록용 — 로그인에는 쓰이지 않음)" />
     </div>
     <div style="display:flex; gap:8px;">
       <button class="btn" id="save-btn">저장</button>
@@ -53,7 +53,7 @@
     <div style="overflow-x:auto;">
       <table class="roster-table">
         <thead>
-          <tr><th>학번</th><th>이름</th><th>반</th><th>상태</th><th>비고</th><th></th></tr>
+          <tr><th>순번</th><th>학년</th><th>반</th><th>번호</th><th>이름</th><th>학적</th><th></th></tr>
         </thead>
         <tbody id="roster-tbody"></tbody>
       </table>
@@ -71,18 +71,18 @@
 
   let roster = [];
   let classCodes = [];
+  let editingSeq = null;
 
   const els = {
     error: document.getElementById('error-view'),
     tbody: document.getElementById('roster-tbody'),
     count: document.getElementById('roster-count'),
     formTitle: document.getElementById('form-title'),
-    studentId: document.getElementById('f-studentId'),
-    name: document.getElementById('f-name'),
+    grade: document.getElementById('f-grade'),
     classroom: document.getElementById('f-classroom'),
-    email: document.getElementById('f-email'),
-    status: document.getElementById('f-status'),
-    note: document.getElementById('f-note'),
+    number: document.getElementById('f-number'),
+    name: document.getElementById('f-name'),
+    enrollment: document.getElementById('f-enrollment'),
     saveBtn: document.getElementById('save-btn'),
     cancelEditBtn: document.getElementById('cancel-edit-btn'),
     classCodeList: document.getElementById('class-code-list'),
@@ -97,26 +97,24 @@
   }
 
   function clearForm() {
-    els.studentId.value = '';
-    els.studentId.disabled = false;
-    els.name.value = '';
+    editingSeq = null;
+    els.grade.value = '2';
     els.classroom.value = '';
-    els.email.value = '';
-    els.status.value = '활성';
-    els.note.value = '';
+    els.number.value = '';
+    els.name.value = '';
+    els.enrollment.value = '재학';
     els.formTitle.textContent = '학생 추가';
     els.cancelEditBtn.style.display = 'none';
   }
 
   function startEdit(student) {
-    els.studentId.value = student.studentId;
-    els.studentId.disabled = true; // 학번은 식별자이므로 수정 중에는 잠금
-    els.name.value = student.name || '';
+    editingSeq = student.seq;
+    els.grade.value = student.grade || '2';
     els.classroom.value = student.classroom || '';
-    els.email.value = student.email || '';
-    els.status.value = student.status || '활성';
-    els.note.value = student.note || '';
-    els.formTitle.textContent = `${student.name || student.studentId} 정보 수정`;
+    els.number.value = student.number || '';
+    els.name.value = student.name || '';
+    els.enrollment.value = student.enrollment || '재학';
+    els.formTitle.textContent = `${student.name || student.seq}번 학생 정보 수정`;
     els.cancelEditBtn.style.display = 'inline-flex';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -127,14 +125,15 @@
       .map(
         (s) => `
       <tr>
-        <td>${s.studentId}</td>
-        <td>${s.name || ''}</td>
+        <td>${s.seq}</td>
+        <td>${s.grade || ''}</td>
         <td>${s.classroom || ''}</td>
-        <td>${s.status || ''}</td>
-        <td>${s.note || ''}</td>
+        <td>${s.number || ''}</td>
+        <td>${s.name || ''}</td>
+        <td>${s.enrollment || ''}</td>
         <td style="white-space:nowrap;">
-          <button class="btn secondary" data-edit="${s.studentId}" style="padding:6px 12px; font-size:0.85rem;">수정</button>
-          <button class="btn secondary" data-delete="${s.studentId}" style="padding:6px 12px; font-size:0.85rem; color:#e03131; border-color:#e03131;">삭제</button>
+          <button class="btn secondary" data-edit="${s.seq}" style="padding:6px 12px; font-size:0.85rem;">수정</button>
+          <button class="btn secondary" data-delete="${s.seq}" style="padding:6px 12px; font-size:0.85rem; color:#e03131; border-color:#e03131;">삭제</button>
         </td>
       </tr>`
       )
@@ -142,7 +141,7 @@
 
     els.tbody.querySelectorAll('[data-edit]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const s = roster.find((r) => String(r.studentId) === btn.dataset.edit);
+        const s = roster.find((r) => String(r.seq) === btn.dataset.edit);
         if (s) startEdit(s);
       });
     });
@@ -180,23 +179,23 @@
   }
 
   async function onSave() {
-    const studentId = els.studentId.value.trim();
-    const name = els.name.value.trim();
     const classroom = els.classroom.value.trim();
-    if (!studentId || !name || !classroom) {
-      alert('학번, 이름, 반은 필수입니다(로그인 시 그대로 사용됩니다).');
+    const number = els.number.value.trim();
+    const name = els.name.value.trim();
+    if (!classroom || !number || !name) {
+      alert('반, 번호, 이름은 필수입니다(로그인 시 그대로 사용됩니다).');
       return;
     }
 
     els.saveBtn.disabled = true;
     try {
       await callApi('upsertRosterEntry', {
-        studentId,
-        name,
+        seq: editingSeq || '',
+        grade: els.grade.value.trim() || '2',
         classroom,
-        email: els.email.value.trim(),
-        status: els.status.value,
-        note: els.note.value.trim(),
+        number,
+        name,
+        enrollment: els.enrollment.value,
       });
       clearForm();
       await loadRoster();
@@ -207,10 +206,10 @@
     }
   }
 
-  async function onDelete(studentId) {
-    if (!confirm(`학번 ${studentId} 학생을 명단에서 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+  async function onDelete(seq) {
+    if (!confirm(`${seq}번 학생을 명단에서 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
     try {
-      await callApi('deleteRosterEntry', { studentId });
+      await callApi('deleteRosterEntry', { seq });
       await loadRoster();
     } catch (err) {
       alert('삭제에 실패했습니다: ' + err.message);

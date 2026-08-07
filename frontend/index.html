@@ -19,9 +19,10 @@
   <div id="login-view" class="card">
     <div id="student-login">
       <h2>학생 로그인</h2>
-      <p class="muted">학번, 이름, 선생님이 안내한 우리 반 코드를 입력하세요.</p>
+      <p class="muted">반, 번호, 이름, 선생님이 안내한 우리 반 코드를 입력하세요.</p>
       <div class="form-grid">
-        <input id="s-studentId" placeholder="학번" inputmode="numeric" />
+        <input id="s-classroom" placeholder="반 (예: 3)" inputmode="numeric" />
+        <input id="s-number" placeholder="번호 (예: 15)" inputmode="numeric" />
         <input id="s-name" placeholder="이름" />
         <input id="s-code" placeholder="반 코드" />
       </div>
@@ -77,7 +78,7 @@
       <h2>교사 메뉴</h2>
       <a class="menu-item" href="roster/index.html">
         <strong>학생명단 · 반코드 관리</strong>
-        <span class="muted">학번·이름·반·상태 추가/수정/삭제, 반별 로그인 코드 설정</span>
+        <span class="muted">학년·반·번호·이름·학적 추가/수정/삭제, 반별 로그인 코드 설정</span>
       </a>
     </div>
   </div>
@@ -93,21 +94,16 @@
 <script>
   const SUBUNITS = [
     { id: '1', name: '마찰전기와 정전기 유도' },
-    { id: '2', name: '전류·전압·저항과 옴의 법칙' },
-    { id: '3', name: '직렬·병렬연결' },
-    { id: '4', name: '전기에너지 전환과 소비전력' },
-    { id: '5', name: '자기장' },
-    { id: '6', name: '전자기력과 전동기' },
+    { id: '2', name: '전류, 전압, 저항 사이의 관계' },
+    { id: '3', name: '저항의 연결' },
+    { id: '4', name: '전기 에너지의 전환과 소비 전력' },
+    { id: '5', name: '전류에 의한 자기장' },
+    { id: '6', name: '전기와 자기가 만드는 힘' },
   ];
 
-  const CHATBOT_CONCEPTS = [
-    '마찰전기와 정전기 유도',
-    '옴의 법칙과 저항',
-    '직렬·병렬 회로',
-    '전기에너지 전환과 소비전력',
-    '자기장',
-    '전자기력과 전동기',
-  ];
+  // 형성평가_문항 시트의 "소단원명" 값과 정확히 일치해야 합니다(문항 조회는 소단원ID로 하지만,
+  // 챗봇 시작은 이 이름을 개념 문자열로 그대로 사용합니다).
+  const CHATBOT_CONCEPTS = SUBUNITS.map((s) => s.name);
 
   function renderSubunitGrid() {
     const grid = document.getElementById('formative-subunit-grid');
@@ -152,18 +148,19 @@
 
   document.getElementById('student-login-btn').addEventListener('click', async () => {
     const statusEl = document.getElementById('student-login-status');
-    const studentId = document.getElementById('s-studentId').value.trim();
+    const classroom = document.getElementById('s-classroom').value.trim();
+    const number = document.getElementById('s-number').value.trim();
     const name = document.getElementById('s-name').value.trim();
     const code = document.getElementById('s-code').value.trim();
-    if (!studentId || !name || !code) {
-      statusEl.textContent = '학번, 이름, 반 코드를 모두 입력해주세요.';
+    if (!classroom || !number || !name || !code) {
+      statusEl.textContent = '반, 번호, 이름, 반 코드를 모두 입력해주세요.';
       statusEl.classList.add('error');
       return;
     }
     statusEl.textContent = '로그인하는 중...';
     statusEl.classList.remove('error');
     try {
-      const user = await loginStudent(studentId, name, code);
+      const user = await loginStudent(classroom, number, name, code);
       showHome(user);
     } catch (err) {
       statusEl.textContent = err.message;

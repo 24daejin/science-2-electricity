@@ -1,8 +1,9 @@
 # 배포 가이드
 
-세 부분을 순서대로 설정합니다: **① Apps Script 백엔드 → ② GitHub Pages 프론트엔드 → ③ 프론트-백엔드 연결**.
+네 부분을 순서대로 설정합니다: **① Apps Script 백엔드 → ② GitHub Pages 프론트엔드 → ③ 프론트-백엔드 연결 → ④ Firestore(성능 개선, [FIREBASE_SETUP.md](FIREBASE_SETUP.md))**.
 
 > 인증은 Google OAuth(GIS)가 아니라 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호)입니다. Cloud Console 설정이 필요 없습니다. Cloud Console 접근이 나중에 가능해지면 [OAUTH_SETUP.md](OAUTH_SETUP.md)를 참고해 GIS로 전환할 수 있습니다.
+> 문항 조회와 세션 진행 상태는 Apps Script(느림) 대신 Firestore에서 직접 읽습니다 — ④번(선택이지만 강력 추천)을 마쳐야 형성평가가 빠르게 동작합니다. ④ 없이도 앱은 동작하지만, 형성평가 폴링이 느립니다.
 
 ## ① Apps Script 백엔드 배포
 
@@ -54,15 +55,19 @@ Apps Script 편집기 좌측 톱니바퀴 ⚙ **프로젝트 설정 → 스크�
 
 ## ③ 프론트-백엔드 연결
 
-[frontend/assets/js/config.js](../frontend/assets/js/config.js)를 열어 웹 앱 URL을 채우고 다시 push합니다.
+[frontend/assets/js/config.js](../frontend/assets/js/config.js)를 열어 웹 앱 URL을 채우고 다시 push합니다. `FIREBASE_CONFIG`는 ④번([FIREBASE_SETUP.md](FIREBASE_SETUP.md))에서 채웁니다.
 
 ```js
 window.APP_CONFIG = {
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/.../exec", // ①에서 복사한 웹 앱 URL
-  POLLING_INTERVAL_MS: 2500,
+  FIREBASE_CONFIG: { /* ④에서 채움 */ },
   CHATBOT_MAX_TURNS: 5,
 };
 ```
+
+## ④ Firestore 연동 (성능 개선, 강력 추천)
+
+문항 조회와 형성평가 세션 상태를 Apps Script(느림) 대신 Firestore(빠름)에서 직접 읽도록 하는 단계입니다. 자세한 절차는 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)를 그대로 따라가세요. 신용카드 등록이 필요한 유료 요금제는 필요 없습니다.
 
 ## 배포 후 점검 체크리스트
 
@@ -73,7 +78,7 @@ window.APP_CONFIG = {
 - [ ] 교사 계정(TEACHER_ACCOUNTS)으로 로그인하면 홈 화면에 "학생명단 · 반코드 관리" 메뉴가 보인다.
 - [ ] 진단평가에서 **보기 선택 → 확신도 3종 선택(이 시점까지 정오답 비공개) → 정답 공개+피드백** 순서로 화면이 넘어간다.
 - [ ] 브라우저 개발자도구 Network 탭에서 Apps Script로 가는 요청의 Content-Type이 `text/plain`이고, OPTIONS(preflight) 요청이 발생하지 않는다.
-- [ ] 형성평가 화면에서, 세션_상태 시트의 "현재문항ID"를 바꾸면 2~3초 안에 학생 화면이 바뀐다.
+- [ ] (④ 완료 후) 형성평가 화면에서, 세션_상태 시트의 "현재문항ID"를 바꾸면 1초 내로 학생 화면이 바뀐다(Firestore 실시간 리스너).
 - [ ] 형성평가 오답 시 "파인만 챗봇으로 다시 살펴보기" 링크가 뜨고, 클릭하면 해당 핵심 개념으로 챗봇이 시작된다.
 - [ ] 파인만 챗봇이 미리 정해진 질문이 아니라 학생 답변마다 다른 질문을 던지고, 5턴 후 요약을 보여준다.
 - [ ] 다른 탭으로 전환했다가 돌아오면 이탈_로그 시트에 행이 쌓인다(막지는 않음).

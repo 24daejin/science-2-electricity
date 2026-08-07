@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>진단평가 · 전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="../assets/css/style.css" />
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="page">
@@ -51,6 +53,7 @@
 <script src="../assets/js/api.js"></script>
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/confidence.js"></script>
+<script src="../assets/js/firebase.js"></script>
 <script>
   const user = requireLogin();
 
@@ -87,7 +90,7 @@
 
   async function loadQuestions() {
     try {
-      questions = await callApi('getDiagnosticQuestions', {});
+      questions = await fetchDiagnosticQuestionsFS();
       if (!questions.length) throw new Error('등록된 진단평가 문항이 없습니다.');
       els.loading.style.display = 'none';
       els.quiz.style.display = 'block';

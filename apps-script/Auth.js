@@ -65,7 +65,7 @@ function Auth_loginStudent_(payload) {
     throw new Error('반, 번호, 이름, 코드를 모두 입력해주세요.');
   }
 
-  var roster = SheetUtils_getRows(SHEET_NAMES.ROSTER);
+  var roster = SheetUtils_getRowsCached(SHEET_NAMES.ROSTER, 60);
   if (roster === null) {
     throw new Error('학생명단이 아직 준비되지 않았습니다. 담당 선생님께 문의하세요.');
   }
@@ -84,7 +84,7 @@ function Auth_loginStudent_(payload) {
     throw new Error('현재 재학 상태가 아닌 것으로 등록되어 있습니다. 담당 선생님께 문의하세요.');
   }
 
-  var classCodes = SheetUtils_getRows(SHEET_NAMES.CLASS_CODES);
+  var classCodes = SheetUtils_getRowsCached(SHEET_NAMES.CLASS_CODES, 30);
   var codeRow = classCodes
     ? classCodes.find(function (r) { return toHalfWidthDigits_(r['반']) === classroom; })
     : null;

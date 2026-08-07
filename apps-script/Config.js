@@ -7,10 +7,13 @@
  * 설정 방법: docs/DEPLOY.md 참고.
  *
  * 필요한 스크립트 속성 목록:
- *   SPREADSHEET_ID    - 마스터 구글 시트 ID
- *   CLAUDE_API_KEY    - Claude API 키
- *   TEACHER_ACCOUNTS  - 교사 로그인 계정 JSON 배열 문자열.
- *                       예: [{"name":"김다은","password":"바꿔주세요1"},{"name":"박OO","password":"바꿔주세요2"}]
+ *   SPREADSHEET_ID              - 마스터 구글 시트 ID
+ *   CLAUDE_API_KEY               - Claude API 키
+ *   TEACHER_ACCOUNTS             - 교사 로그인 계정 JSON 배열 문자열.
+ *                                  예: [{"name":"김다은","password":"바꿔주세요1"},{"name":"박OO","password":"바꿔주세요2"}]
+ *   FIREBASE_SERVICE_ACCOUNT_JSON - Firestore 동기화(Sync.js)에 사용. Firebase 콘솔 >
+ *                                  프로젝트 설정 > 서비스 계정 > "새 비공개 키 생성"으로 받은
+ *                                  JSON 파일의 내용을 그대로 붙여넣습니다. (docs/FIREBASE_SETUP.md 참고)
  */
 
 function getScriptProps_() {
@@ -45,6 +48,12 @@ function getTeacherAccounts_() {
   }
 }
 
+var _cachedSpreadsheet_ = null;
+
+/** 실행 1건 안에서 스프레드시트를 한 번만 엽니다(한 요청 안에 여러 탭을 읽는 경우 절약). */
 function getSpreadsheet_() {
-  return SpreadsheetApp.openById(getSpreadsheetId_());
+  if (!_cachedSpreadsheet_) {
+    _cachedSpreadsheet_ = SpreadsheetApp.openById(getSpreadsheetId_());
+  }
+  return _cachedSpreadsheet_;
 }

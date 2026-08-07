@@ -2,6 +2,9 @@
 apps-script/.clasp.json
 apps-script/.claspignore.local
 
+# Claude Code local settings (per-machine, not project config)
+.claude/settings.local.json
+
 # OS/editor
 .DS_Store
 Thumbs.db

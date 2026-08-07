@@ -1,7 +1,9 @@
-# 데이터 모델 (Google Sheets)
+# 데이터 모델 (Google Sheets + Firestore)
 
 마스터 스프레드시트 1개(현재 ID: `1zCWl9O6to8HdAXimDLx6BiMtchSOm3_M5cQ7yiK65l0`) 안에 여러 탭으로 구성됩니다.
-앱은 이 시트를 SSOT로 실시간 조회하므로, 여기 적힌 헤더명(컬럼명)을 **정확히** 지켜야 합니다 — Apps Script가 헤더명으로 컬럼을 찾습니다.
+**교사는 이 시트만 편집하면 됩니다** — 여기 적힌 헤더명(컬럼명)을 **정확히** 지켜야 합니다(Apps Script가 헤더명으로 컬럼을 찾습니다).
+
+진단평가_문항 / 형성평가_문항 / 세션_상태 세 탭은 Apps Script가 자동으로 **Firestore에도 동기화**합니다([FIREBASE_SETUP.md](FIREBASE_SETUP.md) 참고) — 학생 화면은 속도 때문에 시트가 아니라 이 Firestore 사본을 직접 읽습니다. 시트가 여전히 진짜 SSOT이고, Firestore는 "읽기 전용 빠른 사본"입니다.
 
 ## 교사가 직접 관리하는 탭
 

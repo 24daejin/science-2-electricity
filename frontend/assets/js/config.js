@@ -7,7 +7,7 @@
 window.APP_CONFIG = {
   // apps-script 배포 후 발급되는 웹앱 URL
   // 예: https://script.google.com/macros/s/AKfycb.../exec
-  APPS_SCRIPT_URL: "YOUR_APPS_SCRIPT_WEB_APP_URL",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzfCyezn-CI6MEfVE72M0htoINP49RNu_Oj7iItyPWZCH5l9AS7kAtKWS0rRfY9IC9k/exec",
 
   // 세션 상태 폴링 주기 (ms). 기획서 기준 2~3초.
   POLLING_INTERVAL_MS: 2500,

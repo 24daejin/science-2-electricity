@@ -1,0 +1,9 @@
+# Apps Script (clasp)
+apps-script/.clasp.json
+apps-script/.claspignore.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.log
+node_modules/

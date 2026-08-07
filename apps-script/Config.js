@@ -1,0 +1,50 @@
+/**
+ * 배포 환경 설정값 접근 유틸.
+ *
+ * 스프레드시트 ID, 교사 계정, Claude API 키 등은 절대 코드에 하드코딩하지 않고
+ * Apps Script "스크립트 속성"(프로젝트 설정 > 스크립트 속성)에 저장합니다.
+ * 값을 바꿀 때 코드를 재배포할 필요가 없고, git에 비밀값이 남지 않습니다.
+ * 설정 방법: docs/DEPLOY.md 참고.
+ *
+ * 필요한 스크립트 속성 목록:
+ *   SPREADSHEET_ID    - 마스터 구글 시트 ID
+ *   CLAUDE_API_KEY    - Claude API 키
+ *   TEACHER_ACCOUNTS  - 교사 로그인 계정 JSON 배열 문자열.
+ *                       예: [{"name":"김다은","password":"바꿔주세요1"},{"name":"박OO","password":"바꿔주세요2"}]
+ */
+
+function getScriptProps_() {
+  return PropertiesService.getScriptProperties();
+}
+
+function getRequiredProp_(key) {
+  var value = getScriptProps_().getProperty(key);
+  if (!value) {
+    throw new Error('스크립트 속성 "' + key + '"가 설정되지 않았습니다. Apps Script 편집기 > 프로젝트 설정 > 스크립트 속성에서 추가하세요.');
+  }
+  return value;
+}
+
+function getSpreadsheetId_() {
+  return getRequiredProp_('SPREADSHEET_ID');
+}
+
+function getClaudeApiKey_() {
+  return getRequiredProp_('CLAUDE_API_KEY');
+}
+
+/** 교사 로그인 계정 목록 [{name, password}, ...] */
+function getTeacherAccounts_() {
+  var raw = getRequiredProp_('TEACHER_ACCOUNTS');
+  try {
+    var list = JSON.parse(raw);
+    if (!Array.isArray(list)) throw new Error('not an array');
+    return list;
+  } catch (e) {
+    throw new Error('스크립트 속성 TEACHER_ACCOUNTS가 올바른 JSON 배열이 아닙니다: ' + e.message);
+  }
+}
+
+function getSpreadsheet_() {
+  return SpreadsheetApp.openById(getSpreadsheetId_());
+}

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>진단평가 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+</head>
+<body>
+<div class="page">
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1>진단평가</h1>
+      <p class="muted">단원을 시작하기 전, 선수학습을 확인해요.</p>
+    </div>
+  </div>
+
+  <div id="loading-view" class="card">문항을 불러오는 중입니다...</div>
+
+  <div id="quiz-view" class="card" style="display:none;">
+    <div class="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+    <p class="muted" id="progress-text"></p>
+
+    <span class="tag" id="prior-area-tag"></span>
+    <h2 id="question-text"></h2>
+
+    <div class="choice-list" id="choice-list"></div>
+
+    <div id="confidence-section" style="display:none;">
+      <h2>이 답에 대해 얼마나 확신하나요?</h2>
+      <div class="choice-list" id="confidence-list"></div>
+    </div>
+
+    <div id="feedback-section" style="display:none;">
+      <div id="feedback-box" class="feedback-box"></div>
+      <button class="btn block" id="next-btn" style="margin-top:16px;">다음 문항</button>
+    </div>
+  </div>
+
+  <div id="done-view" class="card" style="display:none;">
+    <h2>진단평가를 완료했어요!</h2>
+    <p id="done-summary" class="muted"></p>
+    <a class="btn block" href="../index.html" style="margin-top:16px; text-decoration:none;">홈으로 돌아가기</a>
+  </div>
+
+  <div id="error-view" class="card error" style="display:none;"></div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/confidence.js"></script>
+<script>
+  const user = requireLogin();
+
+  let questions = [];
+  let currentIndex = 0;
+  let correctCount = 0;
+  let selectedChoice = null; // 1~4
+  let selectedConfidence = null; // CONFIDENCE_TAGS 항목
+
+  const els = {
+    loading: document.getElementById('loading-view'),
+    quiz: document.getElementById('quiz-view'),
+    done: document.getElementById('done-view'),
+    error: document.getElementById('error-view'),
+    progressFill: document.getElementById('progress-fill'),
+    progressText: document.getElementById('progress-text'),
+    priorAreaTag: document.getElementById('prior-area-tag'),
+    questionText: document.getElementById('question-text'),
+    choiceList: document.getElementById('choice-list'),
+    confidenceSection: document.getElementById('confidence-section'),
+    confidenceList: document.getElementById('confidence-list'),
+    feedbackSection: document.getElementById('feedback-section'),
+    feedbackBox: document.getElementById('feedback-box'),
+    nextBtn: document.getElementById('next-btn'),
+    doneSummary: document.getElementById('done-summary'),
+  };
+
+  function showError(message) {
+    els.loading.style.display = 'none';
+    els.quiz.style.display = 'none';
+    els.error.style.display = 'block';
+    els.error.textContent = message;
+  }
+
+  async function loadQuestions() {
+    try {
+      questions = await callApi('getDiagnosticQuestions', {});
+      if (!questions.length) throw new Error('등록된 진단평가 문항이 없습니다.');
+      els.loading.style.display = 'none';
+      els.quiz.style.display = 'block';
+      renderQuestion();
+    } catch (err) {
+      showError('문항을 불러오지 못했습니다: ' + err.message);
+    }
+  }
+
+  function renderQuestion() {
+    selectedChoice = null;
+    selectedConfidence = null;
+
+    const q = questions[currentIndex];
+    els.progressFill.style.width = `${(currentIndex / questions.length) * 100}%`;
+    els.progressText.textContent = `${currentIndex + 1} / ${questions.length}`;
+    els.priorAreaTag.textContent = q.priorArea || '';
+    els.questionText.textContent = q.question;
+
+    els.choiceList.innerHTML = '';
+    q.choices.forEach((choiceText, idx) => {
+      const num = idx + 1;
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.type = 'button';
+      btn.textContent = `${num}. ${choiceText}`;
+      btn.addEventListener('click', () => onChoiceSelected(num, btn));
+      els.choiceList.appendChild(btn);
+    });
+
+    els.confidenceSection.style.display = 'none';
+    els.feedbackSection.style.display = 'none';
+  }
+
+  // 1) 학생이 답을 선택하면 -> 확신도 태그 화면을 먼저 보여준다 (정답 공개는 아직 하지 않음)
+  function onChoiceSelected(num, btnEl) {
+    selectedChoice = num;
+    [...els.choiceList.children].forEach((c) => c.classList.remove('selected'));
+    btnEl.classList.add('selected');
+
+    els.confidenceList.innerHTML = '';
+    CONFIDENCE_TAGS.forEach((tag) => {
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.type = 'button';
+      btn.textContent = tag.label;
+      btn.addEventListener('click', () => onConfidenceSelected(tag, btn));
+      els.confidenceList.appendChild(btn);
+    });
+
+    els.confidenceSection.style.display = 'block';
+    els.feedbackSection.style.display = 'none';
+    els.confidenceSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // 2) 확신도를 선택한 다음에야 정오답 공개 + 4종 피드백 중 하나를 보여준다
+  function onConfidenceSelected(tag, btnEl) {
+    selectedConfidence = tag;
+    [...els.confidenceList.children].forEach((c) => c.classList.remove('selected'));
+    btnEl.classList.add('selected');
+
+    const q = questions[currentIndex];
+    const isCorrect = selectedChoice === q.answer;
+    if (isCorrect) correctCount += 1;
+
+    [...els.choiceList.children].forEach((c, idx) => {
+      const num = idx + 1;
+      if (num === q.answer) c.classList.add('correct');
+      else if (num === selectedChoice) c.classList.add('incorrect');
+    });
+
+    const feedbackKey = feedbackKeyFor(isCorrect, tag.bucket);
+    els.feedbackBox.textContent = q.feedback[feedbackKey] || '';
+    els.feedbackBox.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
+    els.feedbackSection.style.display = 'block';
+    els.feedbackSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    callApi('submitDiagnosticResponse', {
+      questionId: q.questionId,
+      selectedChoice: selectedChoice,
+      confidence: tag.label,
+      isCorrect: isCorrect,
+    }).catch((err) => console.warn('응답 저장 실패:', err.message));
+  }
+
+  els.nextBtn.addEventListener('click', () => {
+    currentIndex += 1;
+    if (currentIndex >= questions.length) {
+      els.quiz.style.display = 'none';
+      els.done.style.display = 'block';
+      els.doneSummary.textContent = `${questions.length}문항 중 ${correctCount}문항을 맞혔어요.`;
+    } else {
+      renderQuestion();
+    }
+  });
+
+  if (user) loadQuestions();
+</script>
+</body>
+</html>

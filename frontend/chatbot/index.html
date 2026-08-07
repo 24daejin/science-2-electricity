@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>파인만 챗봇 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+</head>
+<body>
+<div class="page">
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1>파인만 챗봇</h1>
+      <p class="muted" id="concept-subtitle"></p>
+    </div>
+  </div>
+
+  <div id="error-view" class="card error" style="display:none;"></div>
+
+  <div id="chat-view" class="card" style="display:none;">
+    <p class="muted" id="turn-counter"></p>
+    <div class="chat-log" id="chat-log"></div>
+
+    <div class="chat-input-row" id="input-row">
+      <textarea id="chat-input" rows="2" placeholder="여기에 답을 적어보세요..."></textarea>
+      <button class="btn" id="send-btn">전송</button>
+    </div>
+
+    <div id="final-actions" style="display:none; margin-top:16px;">
+      <a class="btn block" href="../index.html" style="text-decoration:none;">홈으로 돌아가기</a>
+    </div>
+  </div>
+
+  <div id="loading-view" class="card">챗봇을 준비하는 중입니다...</div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/visibility.js"></script>
+<script>
+  const user = requireLogin();
+  const params = new URLSearchParams(window.location.search);
+  const concept = params.get('concept');
+  const cameFrom = params.get('from'); // 'formative' 등
+  const fromSubunit = params.get('subunit');
+  const fromQuestion = params.get('question');
+
+  const els = {
+    error: document.getElementById('error-view'),
+    chat: document.getElementById('chat-view'),
+    loading: document.getElementById('loading-view'),
+    log: document.getElementById('chat-log'),
+    turnCounter: document.getElementById('turn-counter'),
+    input: document.getElementById('chat-input'),
+    sendBtn: document.getElementById('send-btn'),
+    inputRow: document.getElementById('input-row'),
+    finalActions: document.getElementById('final-actions'),
+  };
+
+  let sessionId = null;
+  let maxTurns = 5;
+  let isFinal = false;
+
+  function showError(msg) {
+    els.loading.style.display = 'none';
+    els.chat.style.display = 'none';
+    els.error.style.display = 'block';
+    els.error.textContent = msg;
+  }
+
+  function addBubble(speaker, text) {
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + speaker; // 'bot' | 'student' | 'system'
+    div.textContent = text;
+    els.log.appendChild(div);
+    div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
+
+  function setTurnCounter(turnNumber) {
+    els.turnCounter.textContent = `대화 ${Math.min(turnNumber, maxTurns)} / ${maxTurns}`;
+  }
+
+  function endConversation() {
+    isFinal = true;
+    els.inputRow.style.display = 'none';
+    els.finalActions.style.display = 'block';
+  }
+
+  async function start() {
+    if (!concept) {
+      showError('어떤 개념을 다룰지 지정되지 않았습니다. 홈에서 개념을 선택해 다시 시작해주세요.');
+      return;
+    }
+    document.getElementById('concept-subtitle').textContent = `오늘의 개념: ${concept}`;
+
+    try {
+      const result = await callApi('startChatbotSession', { concept });
+      sessionId = result.sessionId;
+      maxTurns = result.maxTurns || 5;
+      els.loading.style.display = 'none';
+      els.chat.style.display = 'block';
+      setTurnCounter(result.turnNumber);
+      addBubble('bot', result.message);
+
+      initDropoutTracking('chatbot');
+
+      if (cameFrom === 'formative') {
+        addBubble(
+          'system',
+          `형성평가 ${fromSubunit || ''}소단원 ${fromQuestion || ''} 문항에서 이 개념을 다시 짚어보러 왔어요. 이해한 만큼 스스로 설명해보세요!`
+        );
+      }
+    } catch (err) {
+      showError('챗봇을 시작하지 못했습니다: ' + err.message);
+    }
+  }
+
+  async function send() {
+    const message = els.input.value.trim();
+    if (!message || isFinal) return;
+
+    addBubble('student', message);
+    els.input.value = '';
+    els.sendBtn.disabled = true;
+    els.input.disabled = true;
+
+    try {
+      const result = await callApi('sendChatbotMessage', { sessionId, concept, message });
+      setTurnCounter(result.turnNumber);
+      addBubble(result.isFinal ? 'system' : 'bot', result.message);
+      if (result.isFinal) endConversation();
+    } catch (err) {
+      addBubble('system', '메시지를 보내지 못했습니다: ' + err.message);
+    } finally {
+      if (!isFinal) {
+        els.sendBtn.disabled = false;
+        els.input.disabled = false;
+        els.input.focus();
+      }
+    }
+  }
+
+  els.sendBtn.addEventListener('click', send);
+  els.input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  if (user) start();
+</script>
+</body>
+</html>

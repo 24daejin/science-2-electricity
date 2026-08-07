@@ -14,12 +14,12 @@ window.APP_CONFIG = {
   // apiKey 등은 브라우저에 노출되는 게 정상입니다(비밀키 아님) — 실제 접근 제어는
   // Firestore 보안 규칙(docs/FIREBASE_SETUP.md)이 담당합니다.
   FIREBASE_CONFIG: {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID",
+    apiKey: "AIzaSyDouWp7ffGVsXvxyLCz-sS_B7gLbTghWcA",
+    authDomain: "lesson-app1.firebaseapp.com",
+    projectId: "lesson-app1",
+    storageBucket: "lesson-app1.firebasestorage.app",
+    messagingSenderId: "805811549552",
+    appId: "1:805811549552:web:f63edc442703762c7fcbb5",
   },
 
   // 파인만 챗봇 최대 턴 수

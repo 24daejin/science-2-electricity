@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="assets/css/style.css" />
+<link rel="icon" type="image/png" href="assets/images/favicon.png" />
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
@@ -133,7 +134,10 @@
         .join('');
       return `
       <div class="subunit-group" data-subunit-id="${s.id}">
-        <strong>${s.id}. ${s.name}</strong>
+        <div class="subunit-group-head">
+          <img src="assets/images/subunit-${s.id}.svg" alt="" class="subunit-icon" />
+          <strong>${s.id}. ${s.name}</strong>
+        </div>
         <div class="subunit-group-links">
           <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
           <a class="btn secondary" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>

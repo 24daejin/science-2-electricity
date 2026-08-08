@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>진단평가 · 전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="icon" type="image/png" href="../assets/images/favicon.png" />
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
@@ -32,7 +33,8 @@
     <div class="choice-list" id="choice-list"></div>
   </div>
 
-  <div id="done-view" class="card" style="display:none;">
+  <div id="done-view" class="card" style="display:none; text-align:center;">
+    <img src="../assets/images/celebration.svg" alt="" style="width:180px; max-width:60%; margin-bottom:8px;" />
     <h2>진단평가를 완료했어요!</h2>
     <p id="done-summary" class="muted"></p>
   </div>
@@ -203,7 +205,17 @@
     els.modalBox.innerHTML = '';
     const box = document.createElement('div');
     box.className = 'feedback-box ' + (isCorrect ? 'correct' : 'incorrect');
-    box.textContent = feedbackText;
+
+    const icon = document.createElement('img');
+    icon.src = isCorrect ? '../assets/images/correct-icon.svg' : '../assets/images/incorrect-icon.svg';
+    icon.alt = '';
+    icon.className = 'feedback-icon';
+    box.appendChild(icon);
+
+    const text = document.createElement('span');
+    text.textContent = feedbackText;
+    box.appendChild(text);
+
     els.modalBox.appendChild(box);
 
     const confirmBtn = document.createElement('button');

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>관련 내용 답하기 · 전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="icon" type="image/png" href="../assets/images/favicon.png" />
 </head>
 <body>
 <div class="page">
@@ -72,11 +73,24 @@
   }
 
   function addBubble(speaker, text) {
+    const row = document.createElement('div');
+    row.className = 'chat-row ' + speaker; // 'bot' | 'student' | 'system'
+
+    if (speaker === 'bot') {
+      const avatar = document.createElement('img');
+      avatar.src = '../assets/images/chatbot-avatar.svg';
+      avatar.alt = '';
+      avatar.className = 'chat-avatar';
+      row.appendChild(avatar);
+    }
+
     const div = document.createElement('div');
-    div.className = 'chat-bubble ' + speaker; // 'bot' | 'student' | 'system'
+    div.className = 'chat-bubble ' + speaker;
     div.textContent = text;
-    els.log.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    row.appendChild(div);
+
+    els.log.appendChild(row);
+    row.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
 
   function setTurnCounter(turnNumber) {

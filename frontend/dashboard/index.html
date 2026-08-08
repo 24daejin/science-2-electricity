@@ -32,6 +32,7 @@
     <button class="btn secondary" id="back-to-classes-btn" style="margin-bottom:14px;">← 반 선택으로</button>
     <h2>전체 학급 한눈에 보기</h2>
     <p class="muted">모든 반 학생을 합산한 소단원별 정답률입니다.</p>
+    <div id="overall-growth-chart" class="bar-chart-wrap"></div>
     <div id="overall-chart" class="bar-chart-wrap"></div>
 
     <h3 style="margin-top:20px;">반별 비교</h3>
@@ -52,6 +53,8 @@
   <div class="card" id="summary-card" style="display:none;">
     <h2 id="summary-title"></h2>
     <p class="muted">아래 차트와 표는 소단원별 정답률(형성평가)·챗봇 참여를 보여줍니다. 표의 소단원 칸 숫자는 "정답 / 시도한 문항 수"이고, 있으면 챗봇 평균 별점(★)도 함께 표시됩니다. 학생 이름을 누르면 상세 이력을 볼 수 있어요.</p>
+    <p class="muted" style="margin-top:-4px;"><strong>학습 전(진단평가) → 학습 후(형성평가)</strong> 정답률 비교로 이 반의 성장을 가늠할 수 있어요.</p>
+    <div id="growth-chart" class="bar-chart-wrap"></div>
     <div id="summary-chart" class="bar-chart-wrap"></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn secondary" id="download-summary-csv-btn">요약 CSV 다운로드</button>
@@ -86,6 +89,9 @@
       </table>
     </div>
 
+    <h3 style="margin-top:20px;">이탈(탭 전환) 로그 <span class="muted" style="font-weight:400;">— 참고용, 강제 조치 없음</span></h3>
+    <div id="dropout-log"></div>
+
     <h3 style="margin-top:20px;">소단원별 형성평가 + "관련 내용 답하기"(챗봇) 결과</h3>
     <p class="muted">소단원마다 형성평가 응답과 챗봇 대화·루브릭 평가를 함께 모아서 보여줍니다.</p>
     <div id="subunit-detail"></div>
@@ -110,14 +116,17 @@
     overallBtn: document.getElementById('overall-btn'),
     backToClassesBtn: document.getElementById('back-to-classes-btn'),
     overallChart: document.getElementById('overall-chart'),
+    overallGrowthChart: document.getElementById('overall-growth-chart'),
     overallTbody: document.getElementById('overall-tbody'),
     summaryCard: document.getElementById('summary-card'),
     summaryTitle: document.getElementById('summary-title'),
     summaryChart: document.getElementById('summary-chart'),
+    growthChart: document.getElementById('growth-chart'),
     summaryTbody: document.getElementById('summary-tbody'),
     detailCard: document.getElementById('detail-card'),
     detailTitle: document.getElementById('detail-title'),
     diagTbody: document.getElementById('diag-tbody'),
+    dropoutLog: document.getElementById('dropout-log'),
     subunitDetail: document.getElementById('subunit-detail'),
     backBtn: document.getElementById('back-to-summary-btn'),
     downloadSummaryCsvBtn: document.getElementById('download-summary-csv-btn'),
@@ -154,6 +163,32 @@
   function starString(n) {
     const num = Math.max(0, Math.min(5, Math.round(n)));
     return '★'.repeat(num) + '☆'.repeat(5 - num);
+  }
+
+  /** 문항별로 시도 순서에 따른 정답/오답 점을 나열해, 재도전하며 어떻게 성장했는지 한눈에 보여줍니다. */
+  function buildAttemptTrend(responses) {
+    if (!responses.length) return '';
+    const byQuestion = {};
+    responses.forEach((r) => {
+      const qid = r['문항ID'];
+      if (!byQuestion[qid]) byQuestion[qid] = [];
+      byQuestion[qid].push(r);
+    });
+    const rows = Object.keys(byQuestion)
+      .map((qid) => {
+        const attempts = byQuestion[qid]
+          .slice()
+          .sort((a, b) => (Number(a['시도번호']) || 0) - (Number(b['시도번호']) || 0));
+        const dots = attempts
+          .map((r) => {
+            const ok = r['정오답'] === '정답';
+            return `<span title="${ok ? '정답' : '오답'}" style="color:${ok ? 'var(--color-correct)' : 'var(--color-incorrect)'}; font-weight:700;">●</span>`;
+          })
+          .join(' <span class="muted">→</span> ');
+        return `<div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; font-size:0.9rem;"><span class="muted" style="min-width:70px;">${escapeHtml(qid)}</span><span>${dots}</span></div>`;
+      })
+      .join('');
+    return `<div style="margin-bottom:12px;"><p class="muted" style="margin:0 0 6px;">문항별 정답 추이(재도전 시 왼쪽→오른쪽 순서)</p>${rows}</div>`;
   }
 
   /** 가벼운 SVG 막대그래프 — 별도 차트 라이브러리 없이 반/전체 정답률을 한눈에 보여줍니다. */
@@ -221,6 +256,7 @@
     els.summaryTitle.textContent = `${classroom}반`;
     els.summaryTbody.innerHTML = '<tr><td colspan="12">불러오는 중...</td></tr>';
     els.summaryChart.innerHTML = '';
+    els.growthChart.innerHTML = '';
     showView('summary');
     try {
       const [result, scores] = await Promise.all([
@@ -235,9 +271,35 @@
     }
   }
 
+  /** 학생 배열의 진단평가 정답률 vs 형성평가 정답률을 계산합니다("학습 전/후" 성장 비교용). */
+  function computeGrowthComparison(students) {
+    let diagAnswered = 0, diagCorrect = 0, formAnswered = 0, formCorrect = 0;
+    students.forEach((s) => {
+      diagAnswered += s.diagnosticAnswered || 0;
+      diagCorrect += s.diagnosticCorrect || 0;
+      Object.values(s.subunitSummary || {}).forEach((sub) => {
+        formAnswered += sub.answered || 0;
+        formCorrect += sub.correct || 0;
+      });
+    });
+    return {
+      diagRate: diagAnswered ? Math.round((diagCorrect / diagAnswered) * 100) : 0,
+      formRate: formAnswered ? Math.round((formCorrect / formAnswered) * 100) : 0,
+    };
+  }
+
+  function renderGrowthChart(students) {
+    const g = computeGrowthComparison(students);
+    els.growthChart.innerHTML = svgBarChart([
+      { label: '진단평가(학습 전)', value: g.diagRate, sub: `${g.diagRate}%` },
+      { label: '형성평가(학습 후)', value: g.formRate, sub: `${g.formRate}%` },
+    ]);
+  }
+
   function renderSummary(students, scoreBySeq) {
     currentStudents = students;
 
+    renderGrowthChart(students);
     const averages = computeSubunitAverages(students);
     els.summaryChart.innerHTML = svgBarChart(
       averages.map((d) => ({
@@ -299,6 +361,11 @@
 
   function renderOverall(results) {
     const allStudents = results.flatMap((r) => r.students);
+    const g = computeGrowthComparison(allStudents);
+    els.overallGrowthChart.innerHTML = svgBarChart([
+      { label: '진단평가(학습 전)', value: g.diagRate, sub: `${g.diagRate}%` },
+      { label: '형성평가(학습 후)', value: g.formRate, sub: `${g.formRate}%` },
+    ]);
     const overallAverages = computeSubunitAverages(allStudents);
     els.overallChart.innerHTML = svgBarChart(overallAverages.map((d) => ({ label: d.label, value: d.rate, sub: `${d.rate}%` })));
 
@@ -461,10 +528,27 @@
       )
       .join('') || '<tr><td colspan="6" class="muted">응답 기록이 없습니다.</td></tr>';
 
+    const dropoutLog = result.dropoutLog || [];
+    els.dropoutLog.innerHTML = dropoutLog.length
+      ? `<p class="muted" style="margin-top:-4px;">총 ${dropoutLog.length}건</p>
+         <div style="overflow-x:auto;">
+           <table class="roster-table">
+             <thead><tr><th>시각</th><th>화면</th><th>이벤트</th></tr></thead>
+             <tbody>
+               ${dropoutLog
+                 .map((d) => `<tr><td>${fmtTime(d.time)}</td><td>${escapeHtml(d.screen)}</td><td>${d.event === 'hidden' ? '다른 탭/창으로 이동' : '돌아옴'}</td></tr>`)
+                 .join('')}
+             </tbody>
+           </table>
+         </div>`
+      : '<p class="muted">기록 없음.</p>';
+
     const breakdown = result.subunitBreakdown || {};
     els.subunitDetail.innerHTML = ['1', '2', '3', '4', '5', '6']
       .map((id) => {
         const sub = breakdown[id] || { formativeResponses: [], chatbotSessions: [] };
+
+        const trendBlock = buildAttemptTrend(sub.formativeResponses);
 
         const formTable = sub.formativeResponses.length
           ? `<div style="overflow-x:auto;">
@@ -490,6 +574,7 @@
                 (s) => `
               <div class="card" style="margin-top:10px; box-shadow:none; border:1px solid var(--color-border);">
                 ${s.stars != null ? `<span class="tag">루브릭 평가 ${starString(s.stars)} (${s.stars}/5)</span>` : '<span class="tag">루브릭 평가 없음</span>'}
+                ${s.stars != null && !s.evalApproved ? '<span class="tag" style="background:#fff4e0; color:#a05a00;">검수 대기 중 — 학부모에게는 아직 비공개</span>' : ''}
                 ${s.rationale ? `<p class="muted">${escapeHtml(s.rationale)}</p>` : ''}
                 <div class="chat-log" style="max-height:none;">
                   ${s.turns
@@ -508,6 +593,7 @@
         <div class="card" style="margin-top:14px;">
           <h3 style="margin-top:0;">${id}. ${SUBUNIT_NAMES[id]}</h3>
           <p class="muted" style="margin:-6px 0 8px;">형성평가</p>
+          ${trendBlock}
           ${formTable}
           <p class="muted" style="margin:16px 0 8px;">관련 내용 답하기(챗봇)</p>
           ${chatBlocks}

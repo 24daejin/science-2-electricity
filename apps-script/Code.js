@@ -42,6 +42,11 @@ function getRoutes_() {
     startChatbotSession: { fn: Chatbot_start, auth: true },
     sendChatbotMessage: { fn: Chatbot_sendMessage, auth: true },
 
+    // 챗봇 AI 루브릭 평가 검수 (교사 전용, 핸들러 내부에서 검사) — 승인해야 학부모 포털에 노출됨
+    listPendingChatbotEvals: { fn: ChatbotEval_listPending, auth: true },
+    approveChatbotEval: { fn: ChatbotEval_approve, auth: true },
+    rejectChatbotEval: { fn: ChatbotEval_reject, auth: true },
+
     // 이탈(탭 전환) 로그
     logDropout: { fn: DropoutLog_record, auth: true },
 

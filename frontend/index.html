@@ -90,6 +90,10 @@
         <strong>학생 진행 대시보드</strong>
         <span class="muted">반별 → 학생별 정답률/진행률, 학생별 전체 풀이·챗봇 대화 이력(생기부 참고자료)</span>
       </a>
+      <a class="menu-item" href="eval-review/index.html" style="margin-bottom:10px;">
+        <strong>챗봇 평가 검수 <span id="pending-eval-badge" class="tag" style="display:none;"></span></strong>
+        <span class="muted">AI가 채점한 대화 루브릭을 확인·수정 후 승인해야 학부모 포털에 공개됩니다</span>
+      </a>
       <a class="menu-item" href="roster/index.html">
         <strong>학생명단 · 반코드 관리</strong>
         <span class="muted">학년·반·번호·이름·학적 추가/수정/삭제, 반별 로그인 코드 설정</span>
@@ -334,10 +338,24 @@
     if (user.role === 'teacher') {
       document.getElementById('teacher-card').style.display = 'block';
       loadClassSubunitControl();
+      loadPendingEvalBadge();
     } else {
       loadMyScore();
     }
     loadSubunitResources().then(renderSubunitGroups);
+  }
+
+  async function loadPendingEvalBadge() {
+    try {
+      const pending = await callApi('listPendingChatbotEvals', {});
+      const badge = document.getElementById('pending-eval-badge');
+      if (pending.length) {
+        badge.textContent = `대기 ${pending.length}건`;
+        badge.style.display = 'inline-block';
+      }
+    } catch (err) {
+      console.warn('검수 대기 건수를 불러오지 못했습니다:', err.message);
+    }
   }
 
   async function loadMyScore() {

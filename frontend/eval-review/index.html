@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>챗봇 평가 검수 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="icon" type="image/png" href="../assets/images/favicon.png" />
+</head>
+<body>
+<div class="page">
+  <a href="../index.html" class="btn secondary" style="margin-bottom:14px; text-decoration:none; display:inline-flex;">← 홈으로</a>
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1>챗봇 평가 검수</h1>
+      <p class="muted">"관련 내용 답하기" 대화가 끝나면 AI가 5점 루브릭으로 자동 채점합니다. 여기서 확인(필요하면 별점·평가근거 수정)하고 "승인"해야만 학부모 포털에 공개됩니다.</p>
+    </div>
+  </div>
+
+  <div id="error-view" class="card error" style="display:none;"></div>
+  <div id="empty-view" class="card" style="display:none;">
+    <p class="muted">검수 대기 중인 평가가 없습니다. 새 대화가 끝나면 여기 다시 나타납니다.</p>
+  </div>
+
+  <div id="list-view"></div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script>
+  const user = requireTeacher();
+  let pending = [];
+
+  const els = {
+    error: document.getElementById('error-view'),
+    empty: document.getElementById('empty-view'),
+    list: document.getElementById('list-view'),
+  };
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function showError(msg) {
+    els.error.style.display = 'block';
+    els.error.textContent = msg;
+  }
+
+  function fmtTime(t) {
+    if (!t) return '';
+    const d = new Date(t);
+    if (isNaN(d)) return String(t);
+    return d.toLocaleString('ko-KR');
+  }
+
+  async function load() {
+    els.list.innerHTML = '<p class="muted">불러오는 중...</p>';
+    try {
+      pending = await callApi('listPendingChatbotEvals', {});
+      render();
+    } catch (err) {
+      showError('검수 대기 목록을 불러오지 못했습니다: ' + err.message);
+    }
+  }
+
+  function render() {
+    els.empty.style.display = pending.length ? 'none' : 'block';
+    els.list.innerHTML = pending
+      .map(
+        (item, i) => `
+      <div class="card" data-session="${item.sessionId}">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+          <strong>${item.classroom}반 ${item.number}번 ${escapeHtml(item.name)}</strong>
+          <span class="muted">${fmtTime(item.time)}</span>
+        </div>
+        <span class="tag">${escapeHtml(item.concept || '')}</span>
+        ${item.standard ? `<p class="muted" style="margin:2px 0 10px;">성취기준: ${escapeHtml(item.standard)}</p>` : ''}
+
+        <details style="margin:10px 0;">
+          <summary style="cursor:pointer; font-weight:600;">대화 전문 보기 (${item.turns.length}턴)</summary>
+          <div class="chat-log" style="max-height:none; margin-top:10px;">
+            ${item.turns
+              .map((t) => {
+                const cls = t.speaker === '학생' ? 'student' : t.speaker === '챗봇' ? 'bot' : 'system';
+                return `<div class="chat-bubble ${cls}">${escapeHtml(t.message)}</div>`;
+              })
+              .join('')}
+          </div>
+        </details>
+
+        <label class="muted" style="display:block; margin-top:10px;">별점 (AI 채점 결과 — 필요하면 수정)</label>
+        <div class="form-grid" style="grid-template-columns:120px 1fr;">
+          <select data-stars-input>
+            ${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${item.stars === n ? 'selected' : ''}>${n}점</option>`).join('')}
+          </select>
+        </div>
+        <label class="muted" style="display:block; margin-top:6px;">평가근거 (필요하면 수정)</label>
+        <textarea data-rationale-input rows="3" style="width:100%; padding:12px 14px; border-radius:14px; border:1.5px solid var(--color-border); font-family:inherit; font-size:0.95rem;">${escapeHtml(item.rationale || '')}</textarea>
+
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button class="btn" data-approve="${item.sessionId}">승인 (학부모에게 공개)</button>
+          <button class="btn secondary" data-reject="${item.sessionId}" style="color:#e03131; border-color:#e03131;">반려(삭제)</button>
+        </div>
+        <p class="muted error" data-status style="display:none; margin-top:8px;"></p>
+      </div>`
+      )
+      .join('');
+
+    els.list.querySelectorAll('[data-approve]').forEach((btn) => {
+      btn.addEventListener('click', () => onApprove(btn.dataset.approve));
+    });
+    els.list.querySelectorAll('[data-reject]').forEach((btn) => {
+      btn.addEventListener('click', () => onReject(btn.dataset.reject));
+    });
+  }
+
+  function cardFor(sessionId) {
+    return els.list.querySelector(`[data-session="${sessionId}"]`);
+  }
+
+  async function onApprove(sessionId) {
+    const card = cardFor(sessionId);
+    const stars = Number(card.querySelector('[data-stars-input]').value);
+    const rationale = card.querySelector('[data-rationale-input]').value.trim();
+    const statusEl = card.querySelector('[data-status]');
+    card.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      await callApi('approveChatbotEval', { sessionId, stars, rationale });
+      pending = pending.filter((p) => p.sessionId !== sessionId);
+      render();
+    } catch (err) {
+      statusEl.textContent = '승인에 실패했습니다: ' + err.message;
+      statusEl.style.display = 'block';
+      card.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    }
+  }
+
+  async function onReject(sessionId) {
+    if (!confirm('이 AI 평가를 삭제할까요? 학부모에게 노출되지 않습니다(대화 기록 자체는 남습니다).')) return;
+    const card = cardFor(sessionId);
+    card.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      await callApi('rejectChatbotEval', { sessionId });
+      pending = pending.filter((p) => p.sessionId !== sessionId);
+      render();
+    } catch (err) {
+      const statusEl = card.querySelector('[data-status]');
+      statusEl.textContent = '반려에 실패했습니다: ' + err.message;
+      statusEl.style.display = 'block';
+      card.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    }
+  }
+
+  if (user) load();
+</script>
+</body>
+</html>

@@ -140,6 +140,13 @@ function Dashboard_getStudentDetail(payload, auth) {
   var evalRows = (SheetUtils_getRows(SHEET_NAMES.CHATBOT_EVAL) || []).filter(function (r) {
     return String(r['순번']) === seq;
   });
+  // 이탈(탭 전환) 로그는 강제 조치 없이 참고용으로만 함께 보여줍니다(README 유의사항 참고).
+  var dropoutLog = (SheetUtils_getRows(SHEET_NAMES.DROPOUT_LOG) || [])
+    .filter(function (r) { return String(r['순번']) === seq; })
+    .sort(function (a, b) { return new Date(a['시각']) - new Date(b['시각']); })
+    .map(function (r) {
+      return { time: r['시각'], screen: r['화면'] || '', event: r['이벤트'] || '' };
+    });
   var evalBySession = {};
   evalRows.forEach(function (r) { evalBySession[r['세션ID']] = r; });
 
@@ -165,6 +172,8 @@ function Dashboard_getStudentDetail(payload, auth) {
     s.stars = evalRow && evalRow['별점'] ? Number(evalRow['별점']) : null;
     s.rationale = evalRow ? evalRow['평가근거'] : '';
     s.standard = evalRow ? evalRow['성취기준'] : '';
+    // 대시보드는 교사 본인용 참고자료라 검수 전(대기) 평가도 그대로 보여주되, 상태를 함께 표시합니다.
+    s.evalApproved = !!evalRow && String(evalRow['승인상태'] || '') === '승인';
     return s;
   });
 
@@ -199,5 +208,6 @@ function Dashboard_getStudentDetail(payload, auth) {
     formativeResponses: form,
     chatbotSessions: sessions,
     subunitBreakdown: bySubunit,
+    dropoutLog: dropoutLog,
   };
 }

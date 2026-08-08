@@ -35,14 +35,17 @@ function getCurrentUser() {
 /** 현재 페이지 깊이에 맞는 로그인 화면(frontend/index.html) 경로를 계산합니다. */
 function homeUrl() {
   const path = window.location.pathname;
-  const subfolders = ['diagnostic', 'formative', 'chatbot', 'roster'];
+  // frontend/ 바로 아래 폴더 전부 나열 — 여기 빠지면 그 폴더의 페이지에서 로그인 안 된 상태로
+  // 접근했을 때 "index.html"(상대경로)이 자기 자신을 가리켜 무한 리다이렉트 루프에 빠집니다.
+  const subfolders = ['diagnostic', 'formative', 'chatbot', 'roster', 'dashboard', 'session-control', 'parent', 'eval-review'];
   const inSubfolder = subfolders.some((f) => path.includes(`/${f}/`));
   return inSubfolder ? '../index.html' : 'index.html';
 }
 
 /**
- * 하위 폴더(diagnostic/, formative/, chatbot/, roster/)의 페이지에서 호출합니다.
- * 로그인되어 있지 않으면 루트 로그인 화면으로 돌려보냅니다.
+ * 하위 폴더(diagnostic/, formative/, chatbot/, roster/, dashboard/, session-control/,
+ * parent/, eval-review/)의 페이지에서 호출합니다. 로그인되어 있지 않으면 루트 로그인
+ * 화면으로 돌려보냅니다.
  */
 function requireLogin() {
   const user = getCurrentUser();

@@ -42,16 +42,20 @@ function Parent_getView(payload, auth) {
     return s;
   });
 
-  var evaluations = evalRows.map(function (r) {
-    return {
-      sessionId: r['세션ID'],
-      concept: r['개념'],
-      standard: r['성취기준'],
-      stars: Number(r['별점']) || 0,
-      rationale: r['평가근거'],
-      time: r['시각'],
-    };
-  });
+  // 교사가 [챗봇 평가 검수]에서 승인한 평가만 학부모에게 공개합니다(AI 채점 오류가
+  // 그대로 노출되는 것을 막기 위한 안전장치 — ChatbotEvalReview.js 참고).
+  var evaluations = evalRows
+    .filter(function (r) { return String(r['승인상태'] || '') === '승인'; })
+    .map(function (r) {
+      return {
+        sessionId: r['세션ID'],
+        concept: r['개념'],
+        standard: r['성취기준'],
+        stars: Number(r['별점']) || 0,
+        rationale: r['평가근거'],
+        time: r['시각'],
+      };
+    });
 
   var sumBy = function (type) {
     return scoreRows

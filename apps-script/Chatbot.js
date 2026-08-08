@@ -79,7 +79,10 @@ function Chatbot_findStandardForConcept_(concept) {
   return match ? match['성취기준'] : '';
 }
 
-var CHATBOT_EVAL_HEADERS = ['세션ID', '순번', '이름', '반', '번호', '개념', '성취기준', '별점', '평가근거', '시각'];
+// "승인상태"는 AI가 채점한 직후에는 항상 "대기"로 시작합니다 — 교사가 [챗봇 평가 검수]
+// 화면에서 확인(필요하면 별점/평가근거 수정)하고 "승인"해야만 학부모 포털에 노출됩니다
+// (교사 대시보드에는 검수 전이라도 참고용으로 그대로 보입니다).
+var CHATBOT_EVAL_HEADERS = ['세션ID', '순번', '이름', '반', '번호', '개념', '성취기준', '별점', '평가근거', '시각', '승인상태', '검수시각', '검수자'];
 
 function ChatbotEval_save_(sessionId, concept, standard, rubric, auth) {
   SheetUtils_appendRow(SHEET_NAMES.CHATBOT_EVAL, CHATBOT_EVAL_HEADERS, {
@@ -93,6 +96,9 @@ function ChatbotEval_save_(sessionId, concept, standard, rubric, auth) {
     별점: rubric.stars || '',
     평가근거: rubric.rationale || '',
     시각: new Date(),
+    승인상태: '대기',
+    검수시각: '',
+    검수자: '',
   });
 }
 

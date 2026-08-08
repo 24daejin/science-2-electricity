@@ -64,16 +64,23 @@ function Sync_formativeQuestions() {
 function Sync_sessionState() {
   var rows = SheetUtils_getRows(SHEET_NAMES.SESSION_STATE);
   if (!rows) return;
+  var ids = [];
   rows.forEach(function (r) {
+    var classroom = String(r['반'] || '').trim();
     var subunitId = String(r['소단원ID'] || '').trim();
-    if (!subunitId) return;
-    Firestore_setDocument('sessionState', subunitId, {
+    if (!classroom || !subunitId) return; // "반" 헤더가 아직 없거나 반이 비어있는 예전 행은 건너뜀
+    var docId = Session_docId_(classroom, subunitId);
+    ids.push(docId);
+    Firestore_setDocument('sessionState', docId, {
+      classroom: classroom,
+      subunitId: subunitId,
       currentQuestionId: r['현재문항ID'] || '',
       status: r['진행상태'] || '대기',
       updatedAt: new Date().toISOString(),
       updatedBy: r['수정자'] || '',
     });
   });
+  Firestore_pruneCollection('sessionState', ids);
 }
 
 /** 전체 동기화. 수동 메뉴("지금 동기화") 또는 최초 설정(Sync_setup)에서 호출됩니다. */

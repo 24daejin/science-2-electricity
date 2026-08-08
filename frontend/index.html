@@ -60,6 +60,12 @@
       <button class="btn secondary" onclick="logout()">로그아웃</button>
     </div>
 
+    <div class="card" id="class-subunit-card" style="display:none;">
+      <h2>반별 오늘 수업 소단원</h2>
+      <p class="muted">반코드를 준 것만으로는 학생이 어느 소단원에 참여 중인지 정해지지 않아요. 반마다 지금 진행할 소단원을 골라두면, 그 반 학생 홈 화면에 해당 소단원이 강조 표시됩니다. 문항별 세부 진행(하나씩 넘기기/일괄 배포)은 [형성평가 진행 제어]에서 계속하세요.</p>
+      <div id="class-subunit-list"></div>
+    </div>
+
     <div class="card">
       <h2>진단평가</h2>
       <p class="muted">단원을 시작하기 전, 선수학습을 확인해요.</p>
@@ -92,6 +98,22 @@
   </div>
 </div>
 
+<div id="resource-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h2 id="resource-modal-title">자료 추가</h2>
+    <p class="muted">이름과 링크를 입력하면 이 소단원 카드에 버튼으로 바로 나타납니다.</p>
+    <div class="form-grid" style="grid-template-columns:1fr;">
+      <input id="resource-name-input" placeholder="버튼에 표시할 이름 (예: 회로 시뮬레이터)" />
+      <input id="resource-url-input" placeholder="링크(https://...)" />
+    </div>
+    <p class="muted error" id="resource-modal-status" style="display:none;"></p>
+    <div style="display:flex; gap:8px; margin-top:4px;">
+      <button class="btn" id="resource-save-btn">추가</button>
+      <button class="btn secondary" id="resource-cancel-btn">취소</button>
+    </div>
+  </div>
+</div>
+
 <script src="assets/js/config.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/auth.js"></script>
@@ -111,6 +133,8 @@
 
   let stopSessionWatch = null;
   let subunitResources = [];
+  let currentUser = null;
+  let resourceModalSubunitId = null;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -127,16 +151,23 @@
 
   function renderSubunitGroups() {
     const container = document.getElementById('subunit-groups');
+    const isTeacher = currentUser && currentUser.role === 'teacher';
     container.innerHTML = SUBUNITS.map((s) => {
       const extraLinks = subunitResources
         .filter((r) => r.subunitId === s.id)
         .map((r) => `<a class="btn secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="text-decoration:none;">${escapeHtml(r.name)}</a>`)
         .join('');
+      const addBtn = isTeacher
+        ? `<button type="button" class="subunit-add-btn" data-add-resource="${s.id}" title="이 소단원에 자료 추가">+</button>`
+        : '';
       return `
       <div class="subunit-group" data-subunit-id="${s.id}">
         <div class="subunit-group-head">
-          <img src="assets/images/subunit-${s.id}.svg" alt="" class="subunit-icon" />
-          <strong>${s.id}. ${s.name}</strong>
+          <div class="subunit-group-head-left">
+            <img src="assets/images/subunit-${s.id}.svg" alt="" class="subunit-icon" />
+            <strong>${s.id}. ${s.name}</strong>
+          </div>
+          ${addBtn}
         </div>
         <div class="subunit-group-links">
           <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
@@ -146,25 +177,163 @@
       </div>`;
     }).join('');
 
+    container.querySelectorAll('[data-add-resource]').forEach((btn) => {
+      btn.addEventListener('click', () => openResourceModal(btn.dataset.addResource));
+    });
+
     if (stopSessionWatch) stopSessionWatch();
-    stopSessionWatch = watchAllSessionStates((byId) => {
-      SUBUNITS.forEach((s) => {
-        const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
-        if (!el) return;
-        const state = byId[s.id];
-        const isActive = state && (state.status === '진행중' || state.status === '일괄');
-        el.classList.toggle('subunit-group-active', !!isActive);
+    if (currentUser && currentUser.role === 'student') {
+      // 학생은 자기 반에 배정된 소단원만 강조 표시(반마다 진행 상태가 다를 수 있음).
+      stopSessionWatch = watchClassSessionStates(currentUser.classroom, (byId) => {
+        SUBUNITS.forEach((s) => {
+          const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
+          if (!el) return;
+          const state = byId[s.id];
+          const isActive = state && (state.status === '진행중' || state.status === '일괄');
+          el.classList.toggle('subunit-group-active', !!isActive);
+        });
       });
+    }
+  }
+
+  // ---- 소단원 추가 자료 팝업(교사 전용) ----
+
+  const resourceEls = {
+    overlay: document.getElementById('resource-modal'),
+    title: document.getElementById('resource-modal-title'),
+    name: document.getElementById('resource-name-input'),
+    url: document.getElementById('resource-url-input'),
+    status: document.getElementById('resource-modal-status'),
+    saveBtn: document.getElementById('resource-save-btn'),
+    cancelBtn: document.getElementById('resource-cancel-btn'),
+  };
+
+  function openResourceModal(subunitId) {
+    resourceModalSubunitId = subunitId;
+    const subunit = SUBUNITS.find((s) => s.id === subunitId);
+    resourceEls.title.textContent = `${subunitId}. ${subunit ? subunit.name : ''} — 자료 추가`;
+    resourceEls.name.value = '';
+    resourceEls.url.value = '';
+    resourceEls.status.style.display = 'none';
+    resourceEls.overlay.style.display = 'flex';
+    resourceEls.name.focus();
+  }
+
+  function closeResourceModal() {
+    resourceEls.overlay.style.display = 'none';
+    resourceModalSubunitId = null;
+  }
+
+  async function saveResource() {
+    const name = resourceEls.name.value.trim();
+    const url = resourceEls.url.value.trim();
+    if (!name || !url) {
+      resourceEls.status.textContent = '이름과 링크를 모두 입력해주세요.';
+      resourceEls.status.style.display = 'block';
+      return;
+    }
+    resourceEls.saveBtn.disabled = true;
+    try {
+      await callApi('upsertSubunitResource', { subunitId: resourceModalSubunitId, name, url });
+      closeResourceModal();
+      await loadSubunitResources();
+      renderSubunitGroups();
+    } catch (err) {
+      resourceEls.status.textContent = '추가에 실패했습니다: ' + err.message;
+      resourceEls.status.style.display = 'block';
+    } finally {
+      resourceEls.saveBtn.disabled = false;
+    }
+  }
+
+  resourceEls.saveBtn.addEventListener('click', saveResource);
+  resourceEls.cancelBtn.addEventListener('click', closeResourceModal);
+  resourceEls.overlay.addEventListener('click', (e) => {
+    if (e.target === resourceEls.overlay) closeResourceModal();
+  });
+
+  // ---- 반별 오늘 수업 소단원(교사 전용) ----
+
+  let stopClassSubunitWatch = null;
+  let classroomList = [];
+  let classSubunitByClassroom = {};
+
+  async function loadClassSubunitControl() {
+    document.getElementById('class-subunit-card').style.display = 'block';
+    try {
+      const classCodes = await callApi('listClassCodes', {});
+      classroomList = classCodes.map((c) => String(c.classroom)).sort((a, b) => Number(a) - Number(b));
+    } catch (err) {
+      document.getElementById('class-subunit-list').innerHTML = `<p class="muted error">반 목록을 불러오지 못했습니다: ${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    if (!classroomList.length) {
+      document.getElementById('class-subunit-list').innerHTML = '<p class="muted">아직 등록된 반코드가 없습니다. [학생명단·반코드 관리]에서 먼저 반코드를 등록해주세요.</p>';
+      return;
+    }
+
+    if (stopClassSubunitWatch) stopClassSubunitWatch();
+    stopClassSubunitWatch = watchAllClassSessionStates((list) => {
+      classSubunitByClassroom = {};
+      list.forEach((item) => {
+        if (item.status === '진행중' || item.status === '일괄') {
+          classSubunitByClassroom[item.classroom] = { subunitId: item.subunitId, status: item.status };
+        }
+      });
+      renderClassSubunitList();
     });
   }
 
+  function renderClassSubunitList() {
+    const container = document.getElementById('class-subunit-list');
+    container.innerHTML = classroomList
+      .map((classroom) => {
+        const active = classSubunitByClassroom[classroom];
+        const activeLabel = active
+          ? `<span class="tag">${active.subunitId}. ${(SUBUNITS.find((s) => s.id === active.subunitId) || {}).name || ''} · ${active.status === '일괄' ? '일괄 배포 중' : '진행 중'}</span>`
+          : '<span class="muted">설정 안 됨</span>';
+        const buttons = SUBUNITS.map(
+          (s) => `<button type="button" class="choice" data-set-classroom="${classroom}" data-set-subunit="${s.id}" style="${active && active.subunitId === s.id ? 'border-color:var(--color-primary); background:#eef1ff;' : ''}">${s.id}</button>`
+        ).join('');
+        return `
+        <div class="status-banner" style="background:var(--color-surface); border:1px solid var(--color-border);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+            <strong style="color:var(--color-text);">${classroom}반</strong>
+            ${activeLabel}
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${buttons}
+            <button type="button" class="choice" data-clear-classroom="${classroom}">해제</button>
+          </div>
+        </div>`;
+      })
+      .join('');
+
+    container.querySelectorAll('[data-set-classroom]').forEach((btn) => {
+      btn.addEventListener('click', () => setClassActiveSubunit(btn.dataset.setClassroom, btn.dataset.setSubunit));
+    });
+    container.querySelectorAll('[data-clear-classroom]').forEach((btn) => {
+      btn.addEventListener('click', () => setClassActiveSubunit(btn.dataset.clearClassroom, ''));
+    });
+  }
+
+  async function setClassActiveSubunit(classroom, subunitId) {
+    try {
+      await callApi('setClassActiveSubunit', { classroom, subunitId });
+    } catch (err) {
+      alert('소단원 지정에 실패했습니다: ' + err.message);
+    }
+  }
+
   function showHome(user) {
+    currentUser = user;
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('home-view').style.display = 'block';
     document.getElementById('welcome-text').textContent =
       user.role === 'teacher' ? `${user.name} 선생님, 환영합니다.` : `${user.name}님, 환영합니다.`;
     if (user.role === 'teacher') {
       document.getElementById('teacher-card').style.display = 'block';
+      loadClassSubunitControl();
     } else {
       loadMyScore();
     }

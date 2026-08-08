@@ -23,7 +23,13 @@
   <div id="error-view" class="card error" style="display:none;"></div>
 
   <div class="card">
-    <h2>소단원 선택</h2>
+    <h2>반 선택</h2>
+    <p class="muted">반마다 진행 상태가 따로 저장되므로, 먼저 어느 반을 진행할지 골라주세요.</p>
+    <div class="subunit-grid" id="classroom-grid"></div>
+  </div>
+
+  <div class="card" id="subunit-picker-card" style="display:none;">
+    <h2>소단원 선택 — <span id="classroom-label"></span></h2>
     <div class="subunit-grid" id="subunit-grid"></div>
   </div>
 
@@ -61,6 +67,7 @@
     { id: '6', name: '전기와 자기가 만드는 힘' },
   ];
 
+  let currentClassroom = null;
   let currentSubunitId = null;
   let unsubscribe = null;
   let currentQuestionId = null;
@@ -68,6 +75,9 @@
 
   const els = {
     error: document.getElementById('error-view'),
+    classroomGrid: document.getElementById('classroom-grid'),
+    subunitPickerCard: document.getElementById('subunit-picker-card'),
+    classroomLabel: document.getElementById('classroom-label'),
     subunitGrid: document.getElementById('subunit-grid'),
     controlCard: document.getElementById('control-card'),
     controlTitle: document.getElementById('control-title'),
@@ -81,6 +91,38 @@
   function showError(msg) {
     els.error.style.display = 'block';
     els.error.textContent = msg;
+  }
+
+  async function loadClassrooms() {
+    try {
+      const classCodes = await callApi('listClassCodes', {});
+      const classrooms = classCodes.map((c) => String(c.classroom)).sort((a, b) => Number(a) - Number(b));
+      if (!classrooms.length) {
+        els.classroomGrid.innerHTML = '<p class="muted">먼저 [학생명단·반코드 관리]에서 반코드를 등록해주세요.</p>';
+        return;
+      }
+      els.classroomGrid.innerHTML = classrooms
+        .map((c) => `<button class="choice" type="button" data-classroom="${c}">${c}반</button>`)
+        .join('');
+      els.classroomGrid.querySelectorAll('[data-classroom]').forEach((btn) => {
+        btn.addEventListener('click', () => selectClassroom(btn.dataset.classroom, btn));
+      });
+    } catch (err) {
+      showError('반 목록을 불러오지 못했습니다: ' + err.message);
+    }
+  }
+
+  function selectClassroom(classroom, btnEl) {
+    currentClassroom = classroom;
+    [...els.classroomGrid.children].forEach((c) => c.classList.remove('selected'));
+    if (btnEl) btnEl.classList.add('selected');
+
+    els.classroomLabel.textContent = `${classroom}반`;
+    els.subunitPickerCard.style.display = 'block';
+    els.controlCard.style.display = 'none';
+    currentSubunitId = null;
+    if (unsubscribe) unsubscribe();
+    renderSubunitGrid();
   }
 
   function renderSubunitGrid() {
@@ -98,7 +140,7 @@
     if (btnEl) btnEl.classList.add('selected');
 
     const subunit = SUBUNITS.find((s) => s.id === subunitId);
-    els.controlTitle.textContent = `${subunitId}. ${subunit.name}`;
+    els.controlTitle.textContent = `${currentClassroom}반 · ${subunitId}. ${subunit.name}`;
     els.controlCard.style.display = 'block';
     els.questionList.innerHTML = '문항을 불러오는 중...';
 
@@ -114,7 +156,7 @@
       return;
     }
 
-    unsubscribe = watchSessionState(subunitId, onStateUpdate);
+    unsubscribe = watchSessionState(currentClassroom, subunitId, onStateUpdate);
   }
 
   function renderQuestionList(questions) {
@@ -159,6 +201,7 @@
   async function startQuestion(questionId) {
     try {
       await callApi('setSessionState', {
+        classroom: currentClassroom,
         subunitId: currentSubunitId,
         currentQuestionId: questionId,
         status: '진행중',
@@ -171,7 +214,7 @@
   els.batchBtn.addEventListener('click', async () => {
     if (!currentSubunitId) return;
     try {
-      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '일괄' });
+      await callApi('setSessionState', { classroom: currentClassroom, subunitId: currentSubunitId, currentQuestionId: '', status: '일괄' });
     } catch (err) {
       alert('일괄 배포에 실패했습니다: ' + err.message);
     }
@@ -180,7 +223,7 @@
   els.endBtn.addEventListener('click', async () => {
     if (!currentSubunitId) return;
     try {
-      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '종료' });
+      await callApi('setSessionState', { classroom: currentClassroom, subunitId: currentSubunitId, currentQuestionId: '', status: '종료' });
     } catch (err) {
       alert('세션 종료에 실패했습니다: ' + err.message);
     }
@@ -189,13 +232,13 @@
   els.idleBtn.addEventListener('click', async () => {
     if (!currentSubunitId) return;
     try {
-      await callApi('setSessionState', { subunitId: currentSubunitId, currentQuestionId: '', status: '대기' });
+      await callApi('setSessionState', { classroom: currentClassroom, subunitId: currentSubunitId, currentQuestionId: '', status: '대기' });
     } catch (err) {
       alert('상태 변경에 실패했습니다: ' + err.message);
     }
   });
 
-  if (user) renderSubunitGrid();
+  if (user) loadClassrooms();
 </script>
 </body>
 </html>

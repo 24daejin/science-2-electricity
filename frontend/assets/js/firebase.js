@@ -34,46 +34,83 @@ async function fetchFormativeQuestionsFS(subunitId) {
     .sort((a, b) => a.questionId.localeCompare(b.questionId));
 }
 
+// 세션 상태 문서는 "반_소단원ID"를 문서ID로 씁니다(반마다 진행 상태가 독립적이어야 하므로).
+function sessionDocId_(classroom, subunitId) {
+  return `${classroom}_${subunitId}`;
+}
+
 /**
- * 6개 소단원의 세션 상태 전체를 실시간으로 구독합니다. 주로 홈 화면에서
- * "지금 진행 중인 소단원"을 강조 표시하는 데 씁니다. onUpdate에는
+ * 특정 반의 6개 소단원 세션 상태를 전부 실시간으로 구독합니다. 학생 홈 화면에서
+ * "우리 반이 지금 진행 중인 소단원"을 강조 표시하는 데 씁니다. onUpdate에는
  * { subunitId: {status, currentQuestionId, updatedAt} } 형태의 맵이 전달됩니다.
  * @returns {() => void} 구독 해제 함수
  */
-function watchAllSessionStates(onUpdate) {
+function watchClassSessionStates(classroom, onUpdate) {
+  return db
+    .collection('sessionState')
+    .where('classroom', '==', String(classroom))
+    .onSnapshot(
+      (snap) => {
+        const byId = {};
+        snap.forEach((doc) => {
+          const data = doc.data();
+          byId[data.subunitId] = {
+            status: data.status || '대기',
+            currentQuestionId: data.currentQuestionId || null,
+            updatedAt: data.updatedAt || null,
+          };
+        });
+        onUpdate(byId);
+      },
+      (err) => console.warn('반 세션 상태 구독 실패:', err.message)
+    );
+}
+
+/**
+ * 모든 반의 세션 상태를 전부 실시간으로 구독합니다. 교사 홈 화면의 "반별 오늘 수업
+ * 소단원" 카드에서 반마다 지금 활성화된 소단원이 무엇인지 한눈에 보여줄 때 씁니다.
+ * onUpdate에는 { classroom, subunitId, status, currentQuestionId, updatedAt } 배열이 전달됩니다.
+ * @returns {() => void} 구독 해제 함수
+ */
+function watchAllClassSessionStates(onUpdate) {
   return db.collection('sessionState').onSnapshot(
     (snap) => {
-      const byId = {};
+      const list = [];
       snap.forEach((doc) => {
         const data = doc.data();
-        byId[doc.id] = {
+        if (!data.classroom || !data.subunitId) return;
+        list.push({
+          classroom: String(data.classroom),
+          subunitId: String(data.subunitId),
           status: data.status || '대기',
           currentQuestionId: data.currentQuestionId || null,
           updatedAt: data.updatedAt || null,
-        };
+        });
       });
-      onUpdate(byId);
+      onUpdate(list);
     },
     (err) => console.warn('전체 세션 상태 구독 실패:', err.message)
   );
 }
 
 /**
- * 세션 진행 상태를 실시간으로 구독합니다(폴링 대체). 상태가 바뀔 때마다 onUpdate가 호출됩니다.
+ * 특정 반+소단원의 세션 진행 상태를 실시간으로 구독합니다(폴링 대체). 학생의 형성평가
+ * 화면과 교사의 진행 제어 화면에서 씁니다. 상태가 바뀔 때마다 onUpdate가 호출됩니다.
  * @returns {() => void} 구독 해제 함수
  */
-function watchSessionState(subunitId, onUpdate) {
+function watchSessionState(classroom, subunitId, onUpdate) {
   return db
     .collection('sessionState')
-    .doc(String(subunitId))
+    .doc(sessionDocId_(classroom, subunitId))
     .onSnapshot(
       (doc) => {
         if (!doc.exists) {
-          onUpdate({ subunitId, currentQuestionId: null, status: '대기', updatedAt: null });
+          onUpdate({ classroom, subunitId, currentQuestionId: null, status: '대기', updatedAt: null });
           return;
         }
         const data = doc.data();
         onUpdate({
+          classroom,
           subunitId,
           currentQuestionId: data.currentQuestionId || null,
           status: data.status || '대기',

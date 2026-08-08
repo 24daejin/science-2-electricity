@@ -232,8 +232,16 @@ p.muted,
 .subunit-group-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.subunit-group-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .subunit-icon {
@@ -245,6 +253,31 @@ p.muted,
 .subunit-group strong {
   font-size: 1.04rem;
   font-weight: 750;
+}
+
+/* 교사 전용: 소단원 제목 줄 오른쪽 끝의 "자료 추가" 버튼 */
+.subunit-add-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--gradient-brand);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(123, 47, 247, 0.22);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.subunit-add-btn:hover {
+  filter: brightness(1.08);
+  transform: scale(1.06);
 }
 
 .subunit-group-links {

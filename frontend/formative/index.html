@@ -124,8 +124,8 @@
 
     initDropoutTracking(`formative-subunit-${subunitId}`);
 
-    // 2.5초 폴링 대신 Firestore 실시간 리스너로 세션 상태를 구독합니다.
-    stopPolling = watchSessionState(subunitId, onSessionUpdate);
+    // 2.5초 폴링 대신 Firestore 실시간 리스너로, 우리 반+이 소단원의 세션 상태를 구독합니다.
+    stopPolling = watchSessionState(user.classroom, subunitId, onSessionUpdate);
   }
 
   function onSessionUpdate(state) {

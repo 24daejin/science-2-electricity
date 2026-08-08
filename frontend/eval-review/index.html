@@ -14,16 +14,35 @@
     <div class="badge"></div>
     <div>
       <h1>챗봇 평가 검수</h1>
-      <p class="muted">"관련 내용 답하기" 대화가 끝나면 AI가 5점 루브릭으로 자동 채점합니다. 여기서 확인(필요하면 별점·평가근거 수정)하고 "승인"해야만 학부모 포털에 공개됩니다.</p>
+      <p class="muted">"관련 내용 답하기" 대화가 끝나면 AI가 5점 루브릭으로 자동 채점합니다. 표에서 빠르게 훑어보고, 필요한 건만 펼쳐서 대화 전문을 확인·수정한 뒤 승인해야 학부모 포털에 공개됩니다.</p>
     </div>
   </div>
 
   <div id="error-view" class="card error" style="display:none;"></div>
+
+  <div class="card" id="summary-card" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <p class="muted" id="count-text" style="margin:0;"></p>
+      <button class="btn secondary" id="approve-all-btn">전체 일괄 승인(AI 채점 그대로)</button>
+    </div>
+  </div>
+
   <div id="empty-view" class="card" style="display:none;">
     <p class="muted">검수 대기 중인 평가가 없습니다. 새 대화가 끝나면 여기 다시 나타납니다.</p>
   </div>
 
-  <div id="list-view"></div>
+  <div class="card" id="table-card" style="display:none;">
+    <div style="overflow-x:auto;">
+      <table class="roster-table" id="pending-table">
+        <thead>
+          <tr>
+            <th>반</th><th>번호</th><th>이름</th><th>개념</th><th>AI 별점</th><th>시각</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="pending-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script src="../assets/js/config.js"></script>
@@ -32,15 +51,26 @@
 <script>
   const user = requireTeacher();
   let pending = [];
+  const expanded = new Set(); // 펼쳐서 대화 전문을 보고 있는 세션ID들
 
   const els = {
     error: document.getElementById('error-view'),
+    summaryCard: document.getElementById('summary-card'),
+    countText: document.getElementById('count-text'),
+    approveAllBtn: document.getElementById('approve-all-btn'),
     empty: document.getElementById('empty-view'),
-    list: document.getElementById('list-view'),
+    tableCard: document.getElementById('table-card'),
+    tbody: document.getElementById('pending-tbody'),
   };
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function starString(n) {
+    if (n == null) return '-';
+    const num = Math.max(0, Math.min(5, Math.round(n)));
+    return '★'.repeat(num) + '☆'.repeat(5 - num);
   }
 
   function showError(msg) {
@@ -56,102 +86,169 @@
   }
 
   async function load() {
-    els.list.innerHTML = '<p class="muted">불러오는 중...</p>';
+    els.tbody.innerHTML = '<tr><td colspan="7">불러오는 중...</td></tr>';
+    els.tableCard.style.display = 'block';
     try {
       pending = await callApi('listPendingChatbotEvals', {});
+      // 표는 반→번호 순으로 정렬해서 반별로 훑어보기 쉽게 합니다.
+      pending.sort((a, b) => Number(a.classroom) - Number(b.classroom) || Number(a.number) - Number(b.number));
       render();
     } catch (err) {
       showError('검수 대기 목록을 불러오지 못했습니다: ' + err.message);
+      els.tableCard.style.display = 'none';
     }
   }
 
   function render() {
-    els.empty.style.display = pending.length ? 'none' : 'block';
-    els.list.innerHTML = pending
-      .map(
-        (item, i) => `
-      <div class="card" data-session="${item.sessionId}">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
-          <strong>${item.classroom}반 ${item.number}번 ${escapeHtml(item.name)}</strong>
-          <span class="muted">${fmtTime(item.time)}</span>
-        </div>
-        <span class="tag">${escapeHtml(item.concept || '')}</span>
-        ${item.standard ? `<p class="muted" style="margin:2px 0 10px;">성취기준: ${escapeHtml(item.standard)}</p>` : ''}
+    const hasItems = pending.length > 0;
+    els.summaryCard.style.display = hasItems ? 'block' : 'none';
+    els.empty.style.display = hasItems ? 'none' : 'block';
+    els.tableCard.style.display = hasItems ? 'block' : 'none';
+    els.countText.textContent = `검수 대기 ${pending.length}건`;
 
-        <details style="margin:10px 0;">
-          <summary style="cursor:pointer; font-weight:600;">대화 전문 보기 (${item.turns.length}턴)</summary>
-          <div class="chat-log" style="max-height:none; margin-top:10px;">
-            ${item.turns
-              .map((t) => {
-                const cls = t.speaker === '학생' ? 'student' : t.speaker === '챗봇' ? 'bot' : 'system';
-                return `<div class="chat-bubble ${cls}">${escapeHtml(t.message)}</div>`;
-              })
-              .join('')}
-          </div>
-        </details>
+    els.tbody.innerHTML = pending
+      .map((item) => {
+        const isOpen = expanded.has(item.sessionId);
+        const summaryRow = `
+        <tr>
+          <td>${escapeHtml(item.classroom)}반</td>
+          <td>${escapeHtml(item.number)}</td>
+          <td>${escapeHtml(item.name)}</td>
+          <td>${escapeHtml(item.concept || '')}</td>
+          <td style="white-space:nowrap;">${starString(item.stars)}</td>
+          <td class="muted">${fmtTime(item.time)}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn secondary" data-toggle="${item.sessionId}" style="padding:6px 12px; font-size:0.85rem;">${isOpen ? '접기' : '펼쳐서 검토'}</button>
+            <button class="btn" data-quick-approve="${item.sessionId}" style="padding:6px 12px; font-size:0.85rem;">빠른 승인</button>
+          </td>
+        </tr>`;
 
-        <label class="muted" style="display:block; margin-top:10px;">별점 (AI 채점 결과 — 필요하면 수정)</label>
-        <div class="form-grid" style="grid-template-columns:120px 1fr;">
-          <select data-stars-input>
-            ${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${item.stars === n ? 'selected' : ''}>${n}점</option>`).join('')}
-          </select>
-        </div>
-        <label class="muted" style="display:block; margin-top:6px;">평가근거 (필요하면 수정)</label>
-        <textarea data-rationale-input rows="3" style="width:100%; padding:12px 14px; border-radius:14px; border:1.5px solid var(--color-border); font-family:inherit; font-size:0.95rem;">${escapeHtml(item.rationale || '')}</textarea>
+        if (!isOpen) return summaryRow;
 
-        <div style="display:flex; gap:8px; margin-top:12px;">
-          <button class="btn" data-approve="${item.sessionId}">승인 (학부모에게 공개)</button>
-          <button class="btn secondary" data-reject="${item.sessionId}" style="color:#e03131; border-color:#e03131;">반려(삭제)</button>
-        </div>
-        <p class="muted error" data-status style="display:none; margin-top:8px;"></p>
-      </div>`
-      )
+        const detailRow = `
+        <tr>
+          <td colspan="7" style="background:var(--color-surface-2);">
+            <div style="padding:12px 4px;">
+              ${item.standard ? `<p class="muted" style="margin:0 0 8px;">성취기준: ${escapeHtml(item.standard)}</p>` : ''}
+              <div class="chat-log" style="max-height:none; margin-bottom:14px;">
+                ${item.turns
+                  .map((t) => {
+                    const cls = t.speaker === '학생' ? 'student' : t.speaker === '챗봇' ? 'bot' : 'system';
+                    return `<div class="chat-bubble ${cls}">${escapeHtml(t.message)}</div>`;
+                  })
+                  .join('')}
+              </div>
+
+              <label class="muted" style="display:block;">별점 (AI 채점 결과 — 필요하면 수정)</label>
+              <div class="form-grid" style="grid-template-columns:120px; margin-bottom:6px;">
+                <select data-stars-input="${item.sessionId}">
+                  ${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${item.stars === n ? 'selected' : ''}>${n}점</option>`).join('')}
+                </select>
+              </div>
+              <label class="muted" style="display:block;">평가근거 (필요하면 수정)</label>
+              <textarea data-rationale-input="${item.sessionId}" rows="3" style="width:100%; padding:12px 14px; border-radius:14px; border:1.5px solid var(--color-border); font-family:inherit; font-size:0.95rem;">${escapeHtml(item.rationale || '')}</textarea>
+
+              <div style="display:flex; gap:8px; margin-top:12px;">
+                <button class="btn" data-approve-edited="${item.sessionId}">승인 (학부모에게 공개)</button>
+                <button class="btn secondary" data-reject="${item.sessionId}" style="color:#e03131; border-color:#e03131;">반려(삭제)</button>
+              </div>
+              <p class="muted error" data-status="${item.sessionId}" style="display:none; margin-top:8px;"></p>
+            </div>
+          </td>
+        </tr>`;
+
+        return summaryRow + detailRow;
+      })
       .join('');
 
-    els.list.querySelectorAll('[data-approve]').forEach((btn) => {
-      btn.addEventListener('click', () => onApprove(btn.dataset.approve));
+    els.tbody.querySelectorAll('[data-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.toggle;
+        if (expanded.has(id)) expanded.delete(id);
+        else expanded.add(id);
+        render();
+      });
     });
-    els.list.querySelectorAll('[data-reject]').forEach((btn) => {
-      btn.addEventListener('click', () => onReject(btn.dataset.reject));
+    els.tbody.querySelectorAll('[data-quick-approve]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = pending.find((p) => p.sessionId === btn.dataset.quickApprove);
+        approveItem(item.sessionId, item.stars, item.rationale, btn);
+      });
+    });
+    els.tbody.querySelectorAll('[data-approve-edited]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.approveEdited;
+        const stars = Number(els.tbody.querySelector(`[data-stars-input="${id}"]`).value);
+        const rationale = els.tbody.querySelector(`[data-rationale-input="${id}"]`).value.trim();
+        approveItem(id, stars, rationale, btn);
+      });
+    });
+    els.tbody.querySelectorAll('[data-reject]').forEach((btn) => {
+      btn.addEventListener('click', () => onReject(btn.dataset.reject, btn));
     });
   }
 
-  function cardFor(sessionId) {
-    return els.list.querySelector(`[data-session="${sessionId}"]`);
+  function setRowBusy(sessionId, busy) {
+    els.tbody.querySelectorAll(`[data-toggle="${sessionId}"], [data-quick-approve="${sessionId}"], [data-approve-edited="${sessionId}"], [data-reject="${sessionId}"]`).forEach((b) => {
+      b.disabled = busy;
+    });
   }
 
-  async function onApprove(sessionId) {
-    const card = cardFor(sessionId);
-    const stars = Number(card.querySelector('[data-stars-input]').value);
-    const rationale = card.querySelector('[data-rationale-input]').value.trim();
-    const statusEl = card.querySelector('[data-status]');
-    card.querySelectorAll('button').forEach((b) => (b.disabled = true));
+  function showRowError(sessionId, msg) {
+    const statusEl = els.tbody.querySelector(`[data-status="${sessionId}"]`);
+    if (statusEl) {
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+    } else {
+      alert(msg);
+    }
+  }
+
+  async function approveItem(sessionId, stars, rationale, triggerBtn) {
+    setRowBusy(sessionId, true);
     try {
       await callApi('approveChatbotEval', { sessionId, stars, rationale });
       pending = pending.filter((p) => p.sessionId !== sessionId);
+      expanded.delete(sessionId);
       render();
     } catch (err) {
-      statusEl.textContent = '승인에 실패했습니다: ' + err.message;
-      statusEl.style.display = 'block';
-      card.querySelectorAll('button').forEach((b) => (b.disabled = false));
+      showRowError(sessionId, '승인에 실패했습니다: ' + err.message);
+      setRowBusy(sessionId, false);
     }
   }
 
   async function onReject(sessionId) {
     if (!confirm('이 AI 평가를 삭제할까요? 학부모에게 노출되지 않습니다(대화 기록 자체는 남습니다).')) return;
-    const card = cardFor(sessionId);
-    card.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    setRowBusy(sessionId, true);
     try {
       await callApi('rejectChatbotEval', { sessionId });
       pending = pending.filter((p) => p.sessionId !== sessionId);
+      expanded.delete(sessionId);
       render();
     } catch (err) {
-      const statusEl = card.querySelector('[data-status]');
-      statusEl.textContent = '반려에 실패했습니다: ' + err.message;
-      statusEl.style.display = 'block';
-      card.querySelectorAll('button').forEach((b) => (b.disabled = false));
+      showRowError(sessionId, '반려에 실패했습니다: ' + err.message);
+      setRowBusy(sessionId, false);
     }
   }
+
+  els.approveAllBtn.addEventListener('click', async () => {
+    if (!pending.length) return;
+    if (!confirm(`검수 대기 ${pending.length}건을 AI 채점 그대로(수정 없이) 전부 승인할까요? 모두 즉시 학부모 포털에 공개됩니다.`)) return;
+    els.approveAllBtn.disabled = true;
+    els.approveAllBtn.textContent = '승인 처리 중...';
+    const targets = [...pending];
+    for (const item of targets) {
+      try {
+        await callApi('approveChatbotEval', { sessionId: item.sessionId, stars: item.stars, rationale: item.rationale });
+        pending = pending.filter((p) => p.sessionId !== item.sessionId);
+      } catch (err) {
+        console.warn(`${item.name} 평가 승인 실패:`, err.message);
+      }
+    }
+    els.approveAllBtn.disabled = false;
+    els.approveAllBtn.textContent = '전체 일괄 승인(AI 채점 그대로)';
+    render();
+  });
 
   if (user) load();
 </script>

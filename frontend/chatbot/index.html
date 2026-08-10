@@ -26,8 +26,10 @@
 
     <div class="chat-input-row" id="input-row">
       <textarea id="chat-input" rows="2" placeholder="여기에 답을 적어보세요..."></textarea>
+      <button type="button" class="btn secondary mic-btn" id="mic-btn" title="음성으로 입력">🎤</button>
       <button class="btn" id="send-btn">전송</button>
     </div>
+    <p class="muted" id="mic-status" style="display:none; margin-top:4px;">🎤 듣고 있어요... 다 말했으면 마이크 버튼을 다시 눌러주세요.</p>
 
     <div id="final-actions" style="display:none; margin-top:16px;">
       <p class="muted">대화가 끝났어요. 위 "← 홈으로"를 눌러 다른 활동으로 이동할 수 있어요.</p>
@@ -59,6 +61,8 @@
     sendBtn: document.getElementById('send-btn'),
     inputRow: document.getElementById('input-row'),
     finalActions: document.getElementById('final-actions'),
+    micBtn: document.getElementById('mic-btn'),
+    micStatus: document.getElementById('mic-status'),
   };
 
   let sessionId = null;
@@ -99,7 +103,9 @@
 
   function endConversation() {
     isFinal = true;
+    if (recognition && isRecording) recognition.stop();
     els.inputRow.style.display = 'none';
+    els.micStatus.style.display = 'none';
     els.finalActions.style.display = 'block';
   }
 
@@ -132,14 +138,76 @@
     }
   }
 
+  // ---- 음성 입력(마이크) — 타자가 어려운 상황(태블릿)을 위해 브라우저 내장 음성 인식 사용 ----
+  // 안드로이드 Chrome/크롬북에서는 잘 동작하지만 일부 브라우저(iOS Safari 등)는 지원이 없거나
+  // 불안정할 수 있어, 지원하지 않으면 버튼 자체를 숨겨서 기존 타자 입력만 보이게 합니다.
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
+  let baseTextBeforeRecording = '';
+
+  function setRecordingUI(recording) {
+    isRecording = recording;
+    els.micBtn.classList.toggle('recording', recording);
+    els.micBtn.textContent = recording ? '⏹' : '🎤';
+    els.micBtn.title = recording ? '음성 인식 중지' : '음성으로 입력';
+    els.micStatus.style.display = recording ? 'block' : 'none';
+  }
+
+  if (SpeechRecognitionCtor) {
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'ko-KR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.addEventListener('result', (event) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      const sep = baseTextBeforeRecording && !/\s$/.test(baseTextBeforeRecording) ? ' ' : '';
+      els.input.value = baseTextBeforeRecording + sep + transcript;
+    });
+
+    recognition.addEventListener('end', () => setRecordingUI(false));
+
+    recognition.addEventListener('error', (event) => {
+      setRecordingUI(false);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        addBubble('system', '마이크 사용 권한이 필요해요. 브라우저에서 마이크 권한을 허용한 뒤 다시 시도해주세요.');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        addBubble('system', '음성 인식 중 문제가 생겼어요. 다시 시도해주세요.');
+      }
+    });
+
+    els.micBtn.addEventListener('click', () => {
+      if (isFinal || els.input.disabled) return;
+      if (isRecording) {
+        recognition.stop();
+        return;
+      }
+      baseTextBeforeRecording = els.input.value.trim();
+      try {
+        recognition.start();
+        setRecordingUI(true);
+      } catch (err) {
+        // 이미 시작된 상태 등 드문 오류 — 조용히 무시
+      }
+    });
+  } else {
+    els.micBtn.style.display = 'none';
+  }
+
   async function send() {
     const message = els.input.value.trim();
     if (!message || isFinal) return;
 
+    if (isRecording) recognition.stop();
     addBubble('student', message);
     els.input.value = '';
     els.sendBtn.disabled = true;
     els.input.disabled = true;
+    els.micBtn.disabled = true;
 
     try {
       const result = await callApi('sendChatbotMessage', { sessionId, concept, message });
@@ -152,6 +220,7 @@
       if (!isFinal) {
         els.sendBtn.disabled = false;
         els.input.disabled = false;
+        els.micBtn.disabled = false;
         els.input.focus();
       }
     }

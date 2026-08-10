@@ -692,6 +692,28 @@ table.roster-table tbody tr:hover {
   border-color: var(--color-primary);
 }
 
+.mic-btn {
+  flex-shrink: 0;
+  padding: 13px 18px;
+  font-size: 1.1rem;
+}
+
+.mic-btn.recording {
+  background: #ee2a7b;
+  color: #fff;
+  border-color: #ee2a7b;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(238, 42, 123, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(238, 42, 123, 0);
+  }
+}
+
 footer.disclaimer {
   margin-top: 24px;
   font-size: 0.78rem;

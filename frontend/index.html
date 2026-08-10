@@ -253,14 +253,47 @@
     closeBtn: document.getElementById('activity-modal-close'),
   };
 
+  let activityModalPollTimer = null;
+
   function openActivityModal(url) {
+    activityModalEls.iframe.style.height = '200px'; // 새로 열릴 때마다 로딩 중엔 작은 기본값으로 초기화
     activityModalEls.iframe.src = url;
     activityModalEls.overlay.style.display = 'flex';
+
+    // iframe의 load 이벤트 시점엔 활동 페이지가 아직 데이터를 불러오는 중이라(로딩 화면만
+    // 떠 있음) 그 순간의 높이를 재면 너무 작게 잡힙니다. 대신 모달이 열려있는 동안 짧은
+    // 간격으로 계속 재측정해서, 이미지가 실제로 다 뜬 뒤의 진짜 높이에 자연스럽게 맞춥니다.
+    if (activityModalPollTimer) clearInterval(activityModalPollTimer);
+    let ticks = 0;
+    activityModalPollTimer = setInterval(() => {
+      ticks += 1;
+      fitActivityModalToContent();
+      if (ticks >= 30) clearInterval(activityModalPollTimer); // 최대 약 4.5초 후 중단
+    }, 150);
   }
 
   function closeActivityModal() {
     activityModalEls.overlay.style.display = 'none';
     activityModalEls.iframe.src = 'about:blank'; // 닫으면 내용을 비워서(현재 페이지가 다시 불려오지 않게), 다음에 열 때 항상 새로 불러오게 함
+    if (activityModalPollTimer) {
+      clearInterval(activityModalPollTimer);
+      activityModalPollTimer = null;
+    }
+  }
+
+  // 팝업(iframe)은 같은 사이트라, 안의 실제 콘텐츠 높이(이미지 포함)를 읽어와서 모달 높이를
+  // 거기에 맞춥니다 — 이미지 크기와 상관없이 스크롤바 없이 꽉 차게 보이도록.
+  function fitActivityModalToContent() {
+    try {
+      const doc = activityModalEls.iframe.contentDocument;
+      if (!doc || doc.URL === 'about:blank') return;
+      const contentHeight = doc.documentElement.scrollHeight;
+      if (!contentHeight) return;
+      const maxHeight = window.innerHeight * 0.9;
+      activityModalEls.iframe.style.height = Math.min(contentHeight, maxHeight) + 'px';
+    } catch (err) {
+      // 다른 출처거나 아직 준비 안 된 상태 — 다음 폴링에서 다시 시도되므로 조용히 넘어감
+    }
   }
 
   activityModalEls.closeBtn.addEventListener('click', closeActivityModal);

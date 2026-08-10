@@ -9,7 +9,7 @@
 </head>
 <body>
 <div class="page">
-  <a href="../index.html" class="btn secondary" style="margin-bottom:14px; text-decoration:none; display:inline-flex;">← 홈으로</a>
+  <a href="../index.html" class="btn secondary" id="home-link" style="margin-bottom:14px; text-decoration:none; display:inline-flex;">← 홈으로</a>
   <div class="brand">
     <div class="badge"></div>
     <div>
@@ -39,6 +39,13 @@
   const user = requireLogin();
   const params = new URLSearchParams(window.location.search);
   const activityId = params.get('id');
+
+  // 메인 화면의 팝업(iframe) 안에서 열렸을 때는 "← 홈으로"를 누르면 그 좁은 팝업 안에서
+  // 홈 화면으로 이동해버려 혼란스러우니, 이 버튼 자체를 숨깁니다(팝업엔 이미 닫기(×) 버튼이 있음).
+  if (window.self !== window.top) {
+    const homeLink = document.getElementById('home-link');
+    if (homeLink) homeLink.style.display = 'none';
+  }
 
   // 활동마다 이미지 + 빈칸(문항) 위치를 여기 등록합니다. left/top/width/height는 이미지 크기에
   // 대한 비율(%)이라, 화면 크기가 달라져도 항상 원본의 같은 자리를 가리킵니다.

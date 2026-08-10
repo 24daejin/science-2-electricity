@@ -17,7 +17,15 @@
       <h1>전기와 자기 학습 플랫폼</h1>
       <p class="muted">중학교 과학 · 전기와 자기 단원 개별화 학습</p>
     </div>
-    <div class="brand-actions" id="brand-actions"></div>
+    <div class="brand-actions" id="brand-actions" style="display:none;">
+      <p class="muted" id="welcome-text"></p>
+      <div id="score-view" style="display:none;">
+        <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
+        <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
+      </div>
+      <a class="btn secondary" id="my-dashboard-link" href="my-dashboard/index.html" style="display:none; text-decoration:none;">내 대시보드 보기</a>
+      <button type="button" class="btn secondary" onclick="logout()">로그아웃</button>
+    </div>
   </div>
 
   <div id="login-view" class="card">
@@ -52,6 +60,24 @@
   </div>
 
   <div id="home-view" style="display:none;">
+    <div class="card" id="teacher-card" style="display:none;">
+      <h2>교사 메뉴</h2>
+      <div class="teacher-menu-row">
+        <a class="menu-item" href="roster/index.html">
+          <strong>학생명단 · 반코드 관리</strong>
+          <span class="muted">학년·반·번호·이름·학적 추가/수정/삭제, 반별 로그인 코드 설정</span>
+        </a>
+        <a class="menu-item" href="dashboard/index.html">
+          <strong>대시보드</strong>
+          <span class="muted">반별 → 학생별 정답률/진행률, 학생별 전체 풀이·챗봇 대화 이력(생기부 참고자료)</span>
+        </a>
+        <a class="menu-item" href="eval-review/index.html">
+          <strong>챗봇 평가 검수 <span id="pending-eval-badge" class="tag" style="display:none;"></span></strong>
+          <span class="muted">AI가 채점한 대화 루브릭을 확인·수정 후 승인해야 학부모에게 공개 가능해집니다</span>
+        </a>
+      </div>
+    </div>
+
     <div class="card" id="standards-card" style="display:none;">
       <h2>이번 단원에서 배워야 할 성취기준</h2>
       <ul class="standards-list">
@@ -60,14 +86,6 @@
         <li><span class="standard-code">9과14-03</span> 저항의 직렬연결과 병렬연결의 특징을 비교하고, 일상생활에서 전기 에너지가 다양한 형태의 에너지로 전환됨을 소비 전력과 관련지어 설명할 수 있다.</li>
         <li><span class="standard-code">9과14-04</span> 자기장 안에 놓인 전류가 흐르는 코일이 받는 힘의 특성을 추리하고, 전동기 등 일상생활에서 활용한 예를 찾을 수 있다.</li>
       </ul>
-    </div>
-
-    <div class="card">
-      <p class="muted" id="welcome-text"></p>
-      <div id="score-view" style="display:none;">
-        <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
-        <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
-      </div>
     </div>
 
     <div class="card" id="class-subunit-card" style="display:none;">
@@ -81,22 +99,6 @@
       <h2 id="subunit-groups-title">소단원별 학습</h2>
       <p class="muted" id="subunit-groups-desc">소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.</p>
       <div id="subunit-groups"></div>
-    </div>
-
-    <div class="card" id="teacher-card" style="display:none;">
-      <h2>교사 메뉴</h2>
-      <a class="menu-item" href="roster/index.html" style="margin-bottom:10px;">
-        <strong>학생명단 · 반코드 관리</strong>
-        <span class="muted">학년·반·번호·이름·학적 추가/수정/삭제, 반별 로그인 코드 설정</span>
-      </a>
-      <a class="menu-item" href="dashboard/index.html" style="margin-bottom:10px;">
-        <strong>대시보드</strong>
-        <span class="muted">반별 → 학생별 정답률/진행률, 학생별 전체 풀이·챗봇 대화 이력(생기부 참고자료)</span>
-      </a>
-      <a class="menu-item" href="eval-review/index.html">
-        <strong>챗봇 평가 검수 <span id="pending-eval-badge" class="tag" style="display:none;"></span></strong>
-        <span class="muted">AI가 채점한 대화 루브릭을 확인·수정 후 승인해야 학부모에게 공개 가능해집니다</span>
-      </a>
     </div>
   </div>
 </div>
@@ -573,10 +575,11 @@
     document.getElementById('home-view').style.display = 'block';
     document.getElementById('welcome-text').textContent =
       user.role === 'teacher' ? `${user.name} 선생님, 환영합니다.` : `${user.name}님, 환영합니다.`;
-    renderBrandActions(user);
+    document.getElementById('brand-actions').style.display = 'flex';
+    document.getElementById('my-dashboard-link').style.display = user.role === 'student' ? 'inline-flex' : 'none';
     document.getElementById('standards-card').style.display = user.role === 'student' ? 'block' : 'none';
+    document.getElementById('teacher-card').style.display = user.role === 'teacher' ? 'block' : 'none';
     if (user.role === 'teacher') {
-      document.getElementById('teacher-card').style.display = 'block';
       loadClassSubunitControl();
       loadPendingEvalBadge();
     } else {
@@ -584,16 +587,6 @@
       startSubunitWatch();
     }
     loadSubunitResources().then(renderSubunitGroups);
-  }
-
-  /** 헤더(.brand) 오른쪽에 로그아웃(+학생은 내 대시보드) 버튼을 그립니다. */
-  function renderBrandActions(user) {
-    const dashboardBtn =
-      user.role === 'student' ? '<a class="btn secondary" href="my-dashboard/index.html" style="text-decoration:none;">내 대시보드 보기</a>' : '';
-    document.getElementById('brand-actions').innerHTML = `
-      ${dashboardBtn}
-      <button type="button" class="btn secondary" onclick="logout()">로그아웃</button>
-    `;
   }
 
   async function loadPendingEvalBadge() {
@@ -614,7 +607,7 @@
       const score = await callApi('getMyScore', {});
       document.getElementById('score-quiz').textContent = score.quizScore;
       document.getElementById('score-activity').textContent = score.activityScore;
-      document.getElementById('score-view').style.display = 'block';
+      document.getElementById('score-view').style.display = 'flex';
     } catch (err) {
       console.warn('점수를 불러오지 못했습니다:', err.message);
     }

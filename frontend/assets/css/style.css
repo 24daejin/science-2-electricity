@@ -109,6 +109,17 @@ p.muted,
   font-size: 0.86rem;
 }
 
+.brand-actions p.muted {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.brand-actions #score-view {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* 학생 홈 화면 맨 위, 이번 단원 성취기준 안내 */
 .standards-list {
   margin: 10px 0 0;
@@ -187,29 +198,68 @@ p.muted,
   width: 100%;
 }
 
-.menu-item {
+/* 교사 메뉴: 버튼 세 개를 가로로. 설명(span.muted)은 평소엔 숨겨두고 마우스를 올리면
+   버튼 아래에 말풍선처럼 나타납니다 — 화면을 덜 차지하면서도 설명은 그대로 유지. */
+.teacher-menu-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 20px 22px;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.menu-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 13px 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-text);
   background: var(--color-surface);
   text-decoration: none;
   color: inherit;
-  box-shadow: var(--shadow);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 
-.menu-item:hover {
-  transform: translateY(-3px);
-  border-color: transparent;
-  box-shadow: var(--shadow-lift);
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--color-text);
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 .menu-item strong {
-  font-size: 1.05rem;
-  font-weight: 750;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.menu-item .muted {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+  width: 240px;
+  max-width: 72vw;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-text);
+  color: #fff;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow: var(--shadow-lift);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  z-index: 5;
+}
+
+.menu-item:hover .muted,
+.menu-item:focus-visible .muted {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .subunit-grid {

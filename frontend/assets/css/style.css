@@ -89,10 +89,6 @@ p.muted,
   height: 42px;
   border-radius: 13px;
   background: var(--gradient-brand);
-  background-image: url("../images/badge.png"), var(--gradient-brand);
-  background-size: 65%, cover;
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
   box-shadow: 0 6px 16px rgba(238, 42, 123, 0.28);
   flex-shrink: 0;
 }

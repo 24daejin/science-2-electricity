@@ -106,7 +106,7 @@ p.muted,
   height: 42px;
   border-radius: 13px;
   background: var(--gradient-brand);
-  background-image: url("../images/badge.svg"), var(--gradient-brand);
+  background-image: url("../images/badge.png"), var(--gradient-brand);
   background-size: 65%, cover;
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;

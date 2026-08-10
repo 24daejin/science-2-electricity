@@ -89,6 +89,9 @@
       </table>
     </div>
 
+    <h3 style="margin-top:20px;">교과서 활동 응답</h3>
+    <div id="activity-responses"></div>
+
     <h3 style="margin-top:20px;">이탈(탭 전환) 로그 <span class="muted" style="font-weight:400;">— 참고용, 강제 조치 없음</span></h3>
     <div id="dropout-log"></div>
 
@@ -126,6 +129,7 @@
     detailCard: document.getElementById('detail-card'),
     detailTitle: document.getElementById('detail-title'),
     diagTbody: document.getElementById('diag-tbody'),
+    activityResponses: document.getElementById('activity-responses'),
     dropoutLog: document.getElementById('dropout-log'),
     subunitDetail: document.getElementById('subunit-detail'),
     backBtn: document.getElementById('back-to-summary-btn'),
@@ -473,6 +477,13 @@
     });
     lines.push('');
 
+    lines.push('[교과서 활동 응답]');
+    if (!detail.activityResponses || !detail.activityResponses.length) lines.push('(기록 없음)');
+    (detail.activityResponses || []).forEach((a) => {
+      lines.push(`${fmtTime(a.time)} | ${a.activityId}-${a.questionId} | ${a.answer}`);
+    });
+    lines.push('');
+
     lines.push('[관련 내용 답하기(챗봇) 대화]');
     if (!detail.chatbotSessions.length) lines.push('(기록 없음)');
     detail.chatbotSessions.forEach((s) => {
@@ -527,6 +538,20 @@
         </tr>`
       )
       .join('') || '<tr><td colspan="6" class="muted">응답 기록이 없습니다.</td></tr>';
+
+    const activityResponses = result.activityResponses || [];
+    els.activityResponses.innerHTML = activityResponses.length
+      ? activityResponses
+          .map(
+            (a) => `
+          <div class="card" style="margin-bottom:8px; box-shadow:none; border:1px solid var(--color-border);">
+            <span class="tag">${escapeHtml(a.activityId)} · ${escapeHtml(a.questionId)}</span>
+            <p class="muted" style="margin:4px 0 6px;">${fmtTime(a.time)}</p>
+            <p style="white-space:pre-wrap; margin:0;">${escapeHtml(a.answer)}</p>
+          </div>`
+          )
+          .join('')
+      : '<p class="muted">응답 기록이 없습니다.</p>';
 
     const dropoutLog = result.dropoutLog || [];
     els.dropoutLog.innerHTML = dropoutLog.length

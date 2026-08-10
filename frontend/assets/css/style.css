@@ -461,6 +461,27 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* 교과서 활동: 페이지 이미지 위, 원본 빈칸 자리에 겹쳐 놓는 답변 입력칸 */
+.activity-answer-box {
+  position: absolute;
+  resize: none;
+  border: 1.5px dashed var(--color-primary);
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.activity-answer-box:focus {
+  outline: none;
+  border-style: solid;
+  background: #fff;
+}
+
 /* 대시보드 소단원별 정답률 막대그래프(SVG) 컨테이너 */
 .bar-chart-wrap {
   margin-bottom: 18px;

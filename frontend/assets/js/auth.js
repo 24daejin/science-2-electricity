@@ -37,7 +37,7 @@ function homeUrl() {
   const path = window.location.pathname;
   // frontend/ 바로 아래 폴더 전부 나열 — 여기 빠지면 그 폴더의 페이지에서 로그인 안 된 상태로
   // 접근했을 때 "index.html"(상대경로)이 자기 자신을 가리켜 무한 리다이렉트 루프에 빠집니다.
-  const subfolders = ['diagnostic', 'formative', 'chatbot', 'roster', 'dashboard', 'session-control', 'parent', 'eval-review'];
+  const subfolders = ['diagnostic', 'formative', 'chatbot', 'roster', 'dashboard', 'session-control', 'parent', 'eval-review', 'activity'];
   const inSubfolder = subfolders.some((f) => path.includes(`/${f}/`));
   return inSubfolder ? '../index.html' : 'index.html';
 }

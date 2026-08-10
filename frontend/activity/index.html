@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>교과서 활동 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="icon" type="image/png" href="../assets/images/favicon.png" />
+</head>
+<body>
+<div class="page">
+  <a href="../index.html" class="btn secondary" style="margin-bottom:14px; text-decoration:none; display:inline-flex;">← 홈으로</a>
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1 id="title-text">교과서 활동</h1>
+      <p class="muted">교과서 사진 속, 원래 손으로 쓰던 자리에 답을 입력하세요. 자동으로 저장되고, 다시 들어와도 그대로 남아있어요.</p>
+    </div>
+  </div>
+
+  <div id="loading-view" class="card">불러오는 중...</div>
+  <div id="error-view" class="card error" style="display:none;"></div>
+
+  <div id="activity-view" class="card" style="display:none;">
+    <div id="image-wrap" style="position:relative; width:100%; line-height:0;">
+      <img id="activity-image" style="width:100%; display:block; border-radius:var(--radius-sm); box-shadow:var(--shadow);" alt="" />
+    </div>
+    <div style="margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <button class="btn" id="save-btn">답변 저장</button>
+      <span class="muted" id="save-status"></span>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/visibility.js"></script>
+<script>
+  const user = requireLogin();
+  const params = new URLSearchParams(window.location.search);
+  const activityId = params.get('id');
+
+  // 활동마다 이미지 + 빈칸(문항) 위치를 여기 등록합니다. left/top/width/height는 이미지 크기에
+  // 대한 비율(%)이라, 화면 크기가 달라져도 항상 원본의 같은 자리를 가리킵니다.
+  // 위치는 원본 이미지를 보고 눈대중으로 맞춘 값입니다 — 실제 화면에서 살짝 어긋나 보이면
+  // 알려주세요, 숫자만 조정하면 바로 고칠 수 있습니다.
+  const ACTIVITIES = {
+    '01_1': {
+      title: '마찰 전기의 성질 알아보기',
+      image: '../assets/textbook/01_1_마찰 전기의 성질 알아보기.png',
+      questions: [
+        { id: 'q1', left: '4%', top: '89%', width: '92%', height: '10%' },
+      ],
+    },
+    '01_2': {
+      title: '정전기 유도',
+      image: '../assets/textbook/01_2_정전기 유도.png',
+      questions: [
+        { id: 'q1', left: '2%', top: '15%', width: '21%', height: '13%' },
+      ],
+    },
+    '01_3': {
+      title: '검전기로 정전기 유도 현상 관찰하기',
+      image: '../assets/textbook/01_3_검전기로 정전기 유도 현상 관찰하기.png',
+      questions: [
+        { id: 'q1', left: '4%', top: '89%', width: '92%', height: '10%' },
+      ],
+    },
+  };
+
+  const els = {
+    loading: document.getElementById('loading-view'),
+    error: document.getElementById('error-view'),
+    view: document.getElementById('activity-view'),
+    titleText: document.getElementById('title-text'),
+    imageWrap: document.getElementById('image-wrap'),
+    image: document.getElementById('activity-image'),
+    saveBtn: document.getElementById('save-btn'),
+    saveStatus: document.getElementById('save-status'),
+  };
+
+  function showError(msg) {
+    els.loading.style.display = 'none';
+    els.view.style.display = 'none';
+    els.error.style.display = 'block';
+    els.error.textContent = msg;
+  }
+
+  async function init() {
+    const activity = ACTIVITIES[activityId];
+    if (!activity) {
+      showError('존재하지 않는 활동입니다. 홈으로 돌아가 다시 선택해주세요.');
+      return;
+    }
+
+    els.titleText.textContent = activity.title;
+    els.image.src = activity.image;
+    els.image.alt = activity.title;
+
+    activity.questions.forEach((q) => {
+      const box = document.createElement('textarea');
+      box.className = 'activity-answer-box';
+      box.dataset.questionId = q.id;
+      box.placeholder = '여기에 답을 적어보세요';
+      box.style.left = q.left;
+      box.style.top = q.top;
+      box.style.width = q.width;
+      box.style.height = q.height;
+      els.imageWrap.appendChild(box);
+    });
+
+    let existingAnswers = {};
+    try {
+      existingAnswers = await callApi('getMyActivityResponses', { activityId });
+    } catch (err) {
+      console.warn('이전 답변을 불러오지 못했습니다:', err.message);
+    }
+    els.imageWrap.querySelectorAll('.activity-answer-box').forEach((box) => {
+      const saved = existingAnswers[box.dataset.questionId];
+      if (saved) box.value = saved;
+    });
+
+    els.loading.style.display = 'none';
+    els.view.style.display = 'block';
+
+    initDropoutTracking(`activity-${activityId}`);
+  }
+
+  async function save() {
+    const boxes = [...els.imageWrap.querySelectorAll('.activity-answer-box')];
+    els.saveBtn.disabled = true;
+    els.saveStatus.textContent = '저장하는 중...';
+    try {
+      for (const box of boxes) {
+        await callApi('submitActivityResponse', {
+          activityId,
+          questionId: box.dataset.questionId,
+          answer: box.value,
+        });
+      }
+      els.saveStatus.textContent = '저장했어요 · ' + new Date().toLocaleTimeString('ko-KR');
+    } catch (err) {
+      els.saveStatus.textContent = '저장에 실패했습니다: ' + err.message;
+    } finally {
+      els.saveBtn.disabled = false;
+    }
+  }
+
+  els.saveBtn.addEventListener('click', save);
+
+  if (user) init();
+</script>
+</body>
+</html>

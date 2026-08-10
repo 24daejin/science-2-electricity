@@ -134,6 +134,11 @@ function Dashboard_getStudentDetail(payload, auth) {
   var form = (SheetUtils_getRows(SHEET_NAMES.FORMATIVE_RESPONSES) || []).filter(function (r) {
     return String(r['순번']) === seq;
   });
+  var activityResponses = (SheetUtils_getRows(SHEET_NAMES.ACTIVITY_RESPONSES) || [])
+    .filter(function (r) { return String(r['순번']) === seq && String(r['답변'] || '').trim(); })
+    .map(function (r) {
+      return { activityId: r['활동ID'], questionId: r['문항ID'], answer: r['답변'], time: r['수정시각'] };
+    });
   var chatRows = (SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG) || []).filter(function (r) {
     return String(r['순번']) === seq;
   });
@@ -206,6 +211,7 @@ function Dashboard_getStudentDetail(payload, auth) {
     },
     diagnosticResponses: diag,
     formativeResponses: form,
+    activityResponses: activityResponses,
     chatbotSessions: sessions,
     subunitBreakdown: bySubunit,
     dropoutLog: dropoutLog,

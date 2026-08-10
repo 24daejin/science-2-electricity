@@ -262,12 +262,12 @@
 
   /**
    * 학생 화면: 선생님이 지정한 활동이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
-   * 그 안에 그 그룹의 모든 활동을 드롭다운으로 나열하되 지정된 활동만 선택 가능하게(나머지는
-   * disabled) 합니다 — "확인은 할 수 있지만 활성화 안 된 것처럼" 보이도록.
+   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동만 실제로 눌리는
+   * 버튼이 되고, 나머지는 "비활성"이라는 말 없이 그냥 누를 수 없는 회색 줄로 나열됩니다.
    */
   function renderStudentActivityCard(container) {
     document.getElementById('subunit-groups-title').textContent = '오늘의 활동';
-    document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동만 선택할 수 있어요. 다른 활동은 목록에 보이지만 아직 활성화되지 않았어요.';
+    document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동만 누를 수 있어요. 나머지는 오늘 할 일 목록으로만 보여요.';
 
     if (!activeActivityKey) {
       container.innerHTML = '';
@@ -279,37 +279,17 @@
       container.innerHTML = '';
       return;
     }
-    const { group, activity } = found;
+    const { group } = found;
     const iconHtml = group.icon
       ? `<img src="assets/images/subunit-${group.icon}.png" alt="" class="subunit-icon" />`
       : '';
 
-    // 활동이 하나뿐인 그룹(진단평가)은 고를 게 없으니 드롭다운 대신 바로 누르는 버튼으로 보여줍니다.
-    // 드롭다운은 "여러 활동 중 이것만 활성화됨"을 보여줄 때만 의미가 있습니다(소단원처럼 2개 이상일 때).
-    if (group.activities.length === 1) {
-      container.innerHTML = `
-      <div class="subunit-group subunit-group-active" data-subunit-id="${group.id}">
-        <div class="subunit-group-head">
-          <div class="subunit-group-head-left">
-            ${iconHtml}
-            <strong>${escapeHtml(group.label)}</strong>
-          </div>
-        </div>
-        <div class="subunit-group-links">
-          <button type="button" class="btn" id="student-activity-btn">${escapeHtml(activity.label)}</button>
-        </div>
-      </div>`;
-      document.getElementById('student-activity-btn').addEventListener('click', () => {
-        if (activity.popup) openActivityModal(activity.url);
-        else window.location.href = activity.url;
-      });
-      return;
-    }
-
-    const options = group.activities
+    const rows = group.activities
       .map((a) => {
-        const isActive = a.key === activeActivityKey;
-        return `<option value="${a.key}" ${isActive ? '' : 'disabled'}>${escapeHtml(a.label)}${isActive ? '' : ' (비활성)'}</option>`;
+        if (a.key === activeActivityKey) {
+          return `<button type="button" class="btn block" data-activity-key="${a.key}">${escapeHtml(a.label)}</button>`;
+        }
+        return `<div class="activity-row">${escapeHtml(a.label)}</div>`;
       })
       .join('');
 
@@ -321,18 +301,18 @@
           <strong>${escapeHtml(group.label)}</strong>
         </div>
       </div>
-      <select class="activity-select" id="student-activity-select">
-        <option value="" disabled selected>오늘의 활동을 선택하세요</option>
-        ${options}
-      </select>
+      <div class="activity-list">
+        ${rows}
+      </div>
     </div>`;
 
-    const select = document.getElementById('student-activity-select');
-    select.addEventListener('change', () => {
-      const a = group.activities.find((x) => x.key === select.value);
-      if (!a) return;
-      if (a.popup) openActivityModal(a.url);
-      else window.location.href = a.url;
+    container.querySelectorAll('[data-activity-key]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const a = group.activities.find((x) => x.key === btn.dataset.activityKey);
+        if (!a) return;
+        if (a.popup) openActivityModal(a.url);
+        else window.location.href = a.url;
+      });
     });
   }
 

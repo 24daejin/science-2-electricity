@@ -482,6 +482,23 @@ p.muted,
   color: var(--color-text-muted);
 }
 
+/* 학생 홈 화면: 지정된 그룹의 활동 전체 목록. 활성화된 것만 실제 버튼(.btn.block)이고
+   나머지는 아래 .activity-row로 나열되는 "누를 수 없는 줄"입니다. */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-row {
+  padding: 13px 20px;
+  border-radius: 999px;
+  border: 1.5px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
 /* 소단원 카드의 "활동" 링크를 새 탭 대신 작은 팝업 창으로 열 때 쓰는 모달 */
 .activity-modal-box {
   position: relative;

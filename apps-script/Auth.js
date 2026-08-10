@@ -45,6 +45,12 @@ function requireParent_(auth) {
   }
 }
 
+function requireStudent_(auth) {
+  if (!auth || auth.role !== 'student') {
+    throw new Error('학생만 접근할 수 있는 기능입니다.');
+  }
+}
+
 /** 전각숫자(０-９)를 반각숫자(0-9)로 변환합니다. 학생명단 "번호" 열 표기가 섞여 있어 비교 전 정규화가 필요합니다. */
 function toHalfWidthDigits_(value) {
   return String(value == null ? '' : value)

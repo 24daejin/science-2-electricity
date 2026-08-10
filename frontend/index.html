@@ -57,6 +57,9 @@
         <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
         <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
       </div>
+      <div id="my-dashboard-link" style="display:none; margin-bottom:14px;">
+        <a class="btn secondary" href="my-dashboard/index.html" style="text-decoration:none; display:inline-flex;">내 대시보드 보기</a>
+      </div>
       <button class="btn secondary" onclick="logout()">로그아웃</button>
     </div>
 
@@ -568,6 +571,7 @@
       loadClassSubunitControl();
       loadPendingEvalBadge();
     } else {
+      document.getElementById('my-dashboard-link').style.display = 'block';
       loadMyScore();
       startSubunitWatch();
     }

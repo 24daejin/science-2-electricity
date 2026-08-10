@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>내 대시보드 · 전기와 자기 학습 플랫폼</title>
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="icon" type="image/png" href="../assets/images/favicon.png" />
+</head>
+<body>
+<div class="page">
+  <a href="../index.html" class="btn secondary" style="margin-bottom:14px; text-decoration:none; display:inline-flex;">← 홈으로</a>
+  <div class="brand">
+    <div class="badge"></div>
+    <div>
+      <h1>내 대시보드</h1>
+      <p class="muted" id="subtitle"></p>
+    </div>
+  </div>
+
+  <div id="error-view" class="card error" style="display:none;"></div>
+
+  <div id="view" class="card" style="display:none;">
+    <div style="margin-bottom:16px;">
+      <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
+      <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
+    </div>
+
+    <h2>소단원별 정답률</h2>
+    <p class="muted">소단원마다 형성평가 문항을 얼마나 맞혔는지 보여줘요(같은 문항을 다시 풀었으면 가장 최근 시도만 반영).</p>
+    <div id="subunit-chart" class="bar-chart-wrap"></div>
+
+    <h2>나의 성장</h2>
+    <p class="muted"><strong>학습 전(진단평가) → 학습 후(형성평가)</strong> 정답률 비교예요. 배우기 전보다 얼마나 늘었는지 확인해보세요.</p>
+    <div id="growth-chart" class="bar-chart-wrap"></div>
+
+    <h2>"관련 내용 답하기" 평가</h2>
+    <p class="muted">선생님이 확인한 대화만 여기 나타나요.</p>
+    <div id="evaluations"></div>
+  </div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script>
+  const user = requireLogin();
+
+  const SUBUNIT_NAMES = {
+    '1': '마찰전기와 정전기 유도',
+    '2': '전류, 전압, 저항 사이의 관계',
+    '3': '저항의 연결',
+    '4': '전기 에너지의 전환과 소비 전력',
+    '5': '전류에 의한 자기장',
+    '6': '전기와 자기가 만드는 힘',
+  };
+
+  const els = {
+    error: document.getElementById('error-view'),
+    view: document.getElementById('view'),
+    subtitle: document.getElementById('subtitle'),
+    scoreQuiz: document.getElementById('score-quiz'),
+    scoreActivity: document.getElementById('score-activity'),
+    subunitChart: document.getElementById('subunit-chart'),
+    growthChart: document.getElementById('growth-chart'),
+    evaluations: document.getElementById('evaluations'),
+  };
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function showError(msg) {
+    els.error.style.display = 'block';
+    els.error.textContent = msg;
+  }
+
+  function starString(n) {
+    const stars = Math.max(0, Math.min(5, Number(n) || 0));
+    return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  }
+
+  function fmtTime(t) {
+    if (!t) return '';
+    const d = new Date(t);
+    return isNaN(d) ? String(t) : d.toLocaleString('ko-KR');
+  }
+
+  /** 가벼운 SVG 막대그래프 — 교사 대시보드와 동일한 방식(별도 차트 라이브러리 없음). */
+  function svgBarChart(items) {
+    const width = 620, barH = 22, gap = 10, leftPad = 160, rightPad = 70, topPad = 6;
+    const height = topPad * 2 + items.length * (barH + gap) - gap;
+    const maxW = Math.max(10, width - leftPad - rightPad);
+    const bars = items
+      .map((it, i) => {
+        const y = topPad + i * (barH + gap);
+        const pct = Math.max(0, Math.min(100, it.value));
+        const w = (pct / 100) * maxW;
+        const color = pct >= 80 ? '#2f9e44' : pct >= 50 ? '#f08c00' : '#e03131';
+        return `
+        <text x="0" y="${y + barH / 2 + 4}" font-size="12" fill="#5c6270">${escapeHtml(it.label)}</text>
+        <rect x="${leftPad}" y="${y}" width="${maxW}" height="${barH}" rx="6" fill="#e1e4ec"></rect>
+        <rect x="${leftPad}" y="${y}" width="${w}" height="${barH}" rx="6" fill="${color}"></rect>
+        <text x="${leftPad + maxW + 8}" y="${y + barH / 2 + 4}" font-size="12" fill="#1c1f2b">${it.sub != null ? escapeHtml(it.sub) : Math.round(pct) + '%'}</text>`;
+      })
+      .join('');
+    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+  }
+
+  function renderSubunitChart(subunitSummary) {
+    const bars = ['1', '2', '3', '4', '5', '6'].map((id) => {
+      const sub = subunitSummary[id];
+      const answered = sub ? sub.answered : 0;
+      const correct = sub ? sub.correct : 0;
+      const rate = answered ? Math.round((correct / answered) * 100) : 0;
+      return { label: `${id}. ${SUBUNIT_NAMES[id]}`, value: rate, sub: answered ? `${rate}% (${correct}/${answered})` : '아직 안 풂' };
+    });
+    els.subunitChart.innerHTML = svgBarChart(bars);
+  }
+
+  function renderGrowthChart(result) {
+    const diagRate = result.diagnosticAnswered ? Math.round((result.diagnosticCorrect / result.diagnosticAnswered) * 100) : 0;
+    let formAnswered = 0, formCorrect = 0;
+    Object.values(result.subunitSummary || {}).forEach((sub) => {
+      formAnswered += sub.answered || 0;
+      formCorrect += sub.correct || 0;
+    });
+    const formRate = formAnswered ? Math.round((formCorrect / formAnswered) * 100) : 0;
+
+    if (!result.diagnosticAnswered && !formAnswered) {
+      els.growthChart.innerHTML = '<p class="muted" style="margin:0;">아직 풀이 기록이 없어요. 진단평가와 형성평가를 풀면 여기 성장 그래프가 채워져요.</p>';
+      return;
+    }
+    els.growthChart.innerHTML = svgBarChart([
+      { label: '진단평가(학습 전)', value: diagRate, sub: `${diagRate}%` },
+      { label: '형성평가(학습 후)', value: formRate, sub: `${formRate}%` },
+    ]);
+  }
+
+  function renderEvaluations(evaluations) {
+    if (!evaluations.length) {
+      els.evaluations.innerHTML = '<p class="muted">아직 확인된 평가가 없어요.</p>';
+      return;
+    }
+    els.evaluations.innerHTML = evaluations
+      .map(
+        (e) => `
+      <div class="status-banner" style="margin-bottom:10px;">
+        <strong>${escapeHtml(e.concept || '')}</strong>${e.standard ? ` (${escapeHtml(e.standard)})` : ''}<br>
+        <span style="font-size:1.2rem; letter-spacing:2px;">${starString(e.stars)}</span> ${e.stars}/5점<br>
+        <span class="muted">${escapeHtml(e.rationale || '')}</span>
+        <p class="muted" style="margin:4px 0 0; font-size:0.82rem;">${fmtTime(e.time)}</p>
+      </div>`
+      )
+      .join('');
+  }
+
+  async function load() {
+    try {
+      const result = await callApi('getMyDashboard', {});
+      els.subtitle.textContent = `${result.student.classroom}반 ${result.student.number}번 ${result.student.name}님`;
+      els.scoreQuiz.textContent = result.quizScore;
+      els.scoreActivity.textContent = result.activityScore;
+      renderSubunitChart(result.subunitSummary || {});
+      renderGrowthChart(result);
+      renderEvaluations(result.chatbotEvaluations || []);
+      els.view.style.display = 'block';
+    } catch (err) {
+      showError('대시보드를 불러오지 못했습니다: ' + err.message);
+    }
+  }
+
+  if (user) {
+    if (user.role !== 'student') {
+      showError('학생 계정으로 로그인해야 볼 수 있는 화면입니다.');
+    } else {
+      load();
+    }
+  }
+</script>
+</body>
+</html>

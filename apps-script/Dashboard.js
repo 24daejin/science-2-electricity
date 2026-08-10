@@ -1,7 +1,10 @@
 /**
- * 교사 대시보드: 반별 → 학생별 진행률/정답률 요약, 학생별 상세(전체 응답 이력 + 챗봇 대화 전문).
- * 학생 상세는 학기말 생활기록부 작성 참고 자료로도 그대로 활용할 수 있도록
- * 원본 데이터를 가공 없이 시간순으로 보여줍니다.
+ * 대시보드 3종:
+ *  - Dashboard_getClassSummary: 교사용, 반별 → 학생별 진행률/정답률 요약.
+ *  - Dashboard_getStudentDetail: 교사용, 학생 한 명의 상세(전체 응답 이력 + 챗봇 대화 전문).
+ *    학기말 생활기록부 작성 참고 자료로도 그대로 활용할 수 있도록 원본 데이터를 시간순으로 보여줌.
+ *  - Dashboard_getMyDashboard: 학생 본인용 "내 대시보드". 반 평균/친구 비교 없이 본인의
+ *    성장(진단평가→형성평가)과 소단원별 정답률만 보여주는 동기부여용 요약.
  *
  * 소단원별로 형성평가 결과와 "관련 내용 답하기"(챗봇) 결과를 함께 볼 수 있도록,
  * 형성평가_문항의 소단원명/핵심개념 → 소단원ID 매핑을 만들어 챗봇_로그의 "개념" 값과 연결합니다.
@@ -20,6 +23,69 @@ function Dashboard_buildConceptSubunitMap_() {
     if (concept) map[concept] = id;
   });
   return map;
+}
+
+/**
+ * 학생 한 명의 소단원별 형성평가 정답률 + 챗봇 참여(세션수/평균 별점)를 계산합니다.
+ * Dashboard_getClassSummary(반 전체)와 Dashboard_getMyDashboard(학생 본인용)가 공유합니다.
+ * 같은 문항을 여러 번 풀었으면 가장 최근 시도의 정오답만 셉니다(시트에 나중에 append된 행이 이김).
+ */
+function Dashboard_buildStudentSubunitSummary_(seq, formResponses, chatLogs, evalBySession, conceptSubunitMap) {
+  var form = formResponses.filter(function (r) { return String(r['순번']) === seq; });
+  var chats = chatLogs.filter(function (r) { return String(r['순번']) === seq; });
+
+  // 챗봇 로그는 턴 단위 행이므로, 세션ID별 대표 개념을 한 번씩만 뽑아둔다.
+  var sessionConcept = {};
+  chats.forEach(function (r) {
+    if (!sessionConcept[r['세션ID']]) sessionConcept[r['세션ID']] = r['개념'];
+  });
+
+  var bySubunit = {};
+  function ensureSub(id) {
+    if (!bySubunit[id]) {
+      bySubunit[id] = { formativeAnswered: 0, formativeCorrect: 0, chatbotSessions: 0, starSum: 0, starCount: 0 };
+    }
+    return bySubunit[id];
+  }
+
+  var formBySub = {};
+  form.forEach(function (r) {
+    var subunitId = String(r['소단원ID']);
+    if (!formBySub[subunitId]) formBySub[subunitId] = {};
+    formBySub[subunitId][r['문항ID']] = r['정오답'] === '정답';
+  });
+  Object.keys(formBySub).forEach(function (id) {
+    var qIds = Object.keys(formBySub[id]);
+    var correct = qIds.filter(function (qid) { return formBySub[id][qid]; }).length;
+    var sub = ensureSub(id);
+    sub.formativeAnswered = qIds.length;
+    sub.formativeCorrect = correct;
+  });
+
+  Object.keys(sessionConcept).forEach(function (sid) {
+    var subId = conceptSubunitMap[sessionConcept[sid]];
+    if (!subId) return;
+    var sub = ensureSub(subId);
+    sub.chatbotSessions += 1;
+    var evalRow = evalBySession[sid];
+    if (evalRow && evalRow['별점']) {
+      sub.starSum += Number(evalRow['별점']);
+      sub.starCount += 1;
+    }
+  });
+
+  var subunitSummary = {};
+  Object.keys(bySubunit).forEach(function (id) {
+    var sub = bySubunit[id];
+    subunitSummary[id] = {
+      answered: sub.formativeAnswered,
+      correct: sub.formativeCorrect,
+      chatbotSessions: sub.chatbotSessions,
+      chatbotAvgStars: sub.starCount ? Math.round((sub.starSum / sub.starCount) * 10) / 10 : null,
+    };
+  });
+
+  return { subunitSummary: subunitSummary, chatbotSessionCount: Object.keys(sessionConcept).length };
 }
 
 function Dashboard_getClassSummary(payload, auth) {
@@ -45,58 +111,8 @@ function Dashboard_getClassSummary(payload, auth) {
     var seq = String(s['순번']);
     var diag = diagResponses.filter(function (r) { return String(r['순번']) === seq; });
     var form = formResponses.filter(function (r) { return String(r['순번']) === seq; });
-    var chats = chatLogs.filter(function (r) { return String(r['순번']) === seq; });
 
-    // 챗봇 로그는 턴 단위 행이므로, 세션ID별 대표 개념을 한 번씩만 뽑아둔다.
-    var sessionConcept = {};
-    chats.forEach(function (r) {
-      if (!sessionConcept[r['세션ID']]) sessionConcept[r['세션ID']] = r['개념'];
-    });
-
-    var bySubunit = {};
-    function ensureSub(id) {
-      if (!bySubunit[id]) {
-        bySubunit[id] = { formativeAnswered: 0, formativeCorrect: 0, chatbotSessions: 0, starSum: 0, starCount: 0 };
-      }
-      return bySubunit[id];
-    }
-
-    var formBySub = {};
-    form.forEach(function (r) {
-      var subunitId = String(r['소단원ID']);
-      if (!formBySub[subunitId]) formBySub[subunitId] = {};
-      formBySub[subunitId][r['문항ID']] = r['정오답'] === '정답';
-    });
-    Object.keys(formBySub).forEach(function (id) {
-      var qIds = Object.keys(formBySub[id]);
-      var correct = qIds.filter(function (qid) { return formBySub[id][qid]; }).length;
-      var sub = ensureSub(id);
-      sub.formativeAnswered = qIds.length;
-      sub.formativeCorrect = correct;
-    });
-
-    Object.keys(sessionConcept).forEach(function (sid) {
-      var subId = conceptSubunitMap[sessionConcept[sid]];
-      if (!subId) return;
-      var sub = ensureSub(subId);
-      sub.chatbotSessions += 1;
-      var evalRow = evalBySession[sid];
-      if (evalRow && evalRow['별점']) {
-        sub.starSum += Number(evalRow['별점']);
-        sub.starCount += 1;
-      }
-    });
-
-    var subunitSummary = {};
-    Object.keys(bySubunit).forEach(function (id) {
-      var sub = bySubunit[id];
-      subunitSummary[id] = {
-        answered: sub.formativeAnswered,
-        correct: sub.formativeCorrect,
-        chatbotSessions: sub.chatbotSessions,
-        chatbotAvgStars: sub.starCount ? Math.round((sub.starSum / sub.starCount) * 10) / 10 : null,
-      };
-    });
+    var summary = Dashboard_buildStudentSubunitSummary_(seq, formResponses, chatLogs, evalBySession, conceptSubunitMap);
 
     var diagByQuestion = {};
     diag.forEach(function (r) { diagByQuestion[r['문항ID']] = r['정오답'] === '정답'; });
@@ -110,13 +126,83 @@ function Dashboard_getClassSummary(payload, auth) {
       diagnosticCorrect: diagQIds.filter(function (qid) { return diagByQuestion[qid]; }).length,
       diagnosticAttempts: diag.length,
       formativeAttempts: form.length,
-      chatbotSessionCount: Object.keys(sessionConcept).length,
-      subunitSummary: subunitSummary,
+      chatbotSessionCount: summary.chatbotSessionCount,
+      subunitSummary: summary.subunitSummary,
     };
   });
 
   summaries.sort(function (a, b) { return Number(a.number) - Number(b.number); });
   return { classroom: classroom, students: summaries };
+}
+
+/**
+ * 학생 본인용 "내 대시보드" — Dashboard_getStudentDetail(교사 전용, seq를 payload로 받음)과 달리
+ * 항상 auth.seq(로그인한 본인)만 조회합니다. 반 평균/친구 비교는 일부러 넣지 않습니다(자존감
+ * 보호 — "나 vs 예전의 나"만 보여주는 성장 중심 대시보드).
+ */
+function Dashboard_getMyDashboard(payload, auth) {
+  requireStudent_(auth);
+  var seq = String(auth.seq);
+
+  var roster = SheetUtils_getRows(SHEET_NAMES.ROSTER) || [];
+  var student = roster.find(function (r) { return String(r['순번']) === seq; });
+
+  var diagResponses = (SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_RESPONSES) || []).filter(function (r) {
+    return String(r['순번']) === seq;
+  });
+  var formResponses = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_RESPONSES) || [];
+  var chatLogs = SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG) || [];
+  var chatEvals = SheetUtils_getRows(SHEET_NAMES.CHATBOT_EVAL) || [];
+  var scoreRows = (SheetUtils_getRows(SHEET_NAMES.SCORE_LOG) || []).filter(function (r) {
+    return String(r['순번']) === seq;
+  });
+  var conceptSubunitMap = Dashboard_buildConceptSubunitMap_();
+
+  var evalBySession = {};
+  chatEvals.forEach(function (r) { evalBySession[r['세션ID']] = r; });
+
+  var summary = Dashboard_buildStudentSubunitSummary_(seq, formResponses, chatLogs, evalBySession, conceptSubunitMap);
+
+  var diagByQuestion = {};
+  diagResponses.forEach(function (r) { diagByQuestion[r['문항ID']] = r['정오답'] === '정답'; });
+  var diagQIds = Object.keys(diagByQuestion);
+
+  var sumBy = function (type) {
+    return scoreRows
+      .filter(function (r) { return r['유형'] === type; })
+      .reduce(function (sum, r) { return sum + Number(r['점수'] || 0); }, 0);
+  };
+
+  // 교사가 [챗봇 평가 검수]에서 승인한 평가만 보여줍니다(학부모 포털과 같은 안전장치 —
+  // AI 채점 오류가 검수 전에 그대로 학생에게 노출되는 걸 막기 위함).
+  var evaluations = chatEvals
+    .filter(function (r) { return String(r['순번']) === seq && String(r['승인상태'] || '') === '승인'; })
+    .map(function (r) {
+      return {
+        sessionId: r['세션ID'],
+        concept: r['개념'],
+        standard: r['성취기준'],
+        stars: Number(r['별점']) || 0,
+        rationale: r['평가근거'],
+        time: r['시각'],
+      };
+    })
+    .sort(function (a, b) { return new Date(a.time) - new Date(b.time); });
+
+  return {
+    student: {
+      name: student ? student['이름'] : auth.name,
+      classroom: auth.classroom,
+      number: auth.number,
+    },
+    quizScore: sumBy('문제풀이'),
+    activityScore: sumBy('교과서활동'),
+    diagnosticAnswered: diagQIds.length,
+    diagnosticCorrect: diagQIds.filter(function (qid) { return diagByQuestion[qid]; }).length,
+    chatbotSessionCount: summary.chatbotSessionCount,
+    subunitSummary: summary.subunitSummary,
+    chatbotEvaluations: evaluations,
+  };
 }
 
 function Dashboard_getStudentDetail(payload, auth) {

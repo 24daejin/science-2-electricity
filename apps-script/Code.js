@@ -36,6 +36,9 @@ function getRoutes_() {
     getMyScore: { fn: Score_getMine, auth: true },
     getClassScores: { fn: Score_getClassScores, auth: true },
 
+    // 학생 본인용 "내 대시보드" (핸들러 내부에서 학생 역할 + 본인 seq로만 제한)
+    getMyDashboard: { fn: Dashboard_getMyDashboard, auth: true },
+
     // 교과서 활동("해보기") — 페이지 이미지 위 빈칸에 쓴 답 저장/복원
     getMyActivityResponses: { fn: Activity_getMyResponses, auth: true },
     submitActivityResponse: { fn: Activity_submitResponse, auth: true },

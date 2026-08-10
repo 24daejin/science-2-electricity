@@ -1,8 +1,9 @@
 /**
  * 구글 시트(교사가 편집하는 SSOT) -> Firestore(학생 화면이 읽는 빠른 사본) 동기화.
  *
- * 시트는 그대로 문항/진행상태 편집 도구로 남고, 학생 화면은 Apps Script(느림) 대신
- * Firestore에서 직접 읽습니다. 세션_상태는 Firestore 실시간 리스너로 폴링을 대체합니다.
+ * 시트는 그대로 문항 편집 도구로 남고, 학생 화면은 Apps Script(느림) 대신 Firestore에서
+ * 직접 읽습니다. (반별 활성 활동은 이 파일이 아니라 ActiveActivity.js가 저장 시점에 바로
+ * Firestore로 반영합니다 — 시트 수정을 기다리지 않는 실시간 경로입니다.)
  *
  * 최초 1회, Apps Script 편집기에서 이 파일을 열고 함수 목록에서 Sync_setup을 선택해
  * 직접 실행(▶)하세요 — 자동 동기화 트리거가 설치되고 최초 전체 동기화가 실행됩니다.
@@ -61,33 +62,10 @@ function Sync_formativeQuestions() {
   Firestore_pruneCollection('formativeQuestions', ids);
 }
 
-function Sync_sessionState() {
-  var rows = SheetUtils_getRows(SHEET_NAMES.SESSION_STATE);
-  if (!rows) return;
-  var ids = [];
-  rows.forEach(function (r) {
-    var classroom = String(r['반'] || '').trim();
-    var subunitId = String(r['소단원ID'] || '').trim();
-    if (!classroom || !subunitId) return; // "반" 헤더가 아직 없거나 반이 비어있는 예전 행은 건너뜀
-    var docId = Session_docId_(classroom, subunitId);
-    ids.push(docId);
-    Firestore_setDocument('sessionState', docId, {
-      classroom: classroom,
-      subunitId: subunitId,
-      currentQuestionId: r['현재문항ID'] || '',
-      status: r['진행상태'] || '대기',
-      updatedAt: new Date().toISOString(),
-      updatedBy: r['수정자'] || '',
-    });
-  });
-  Firestore_pruneCollection('sessionState', ids);
-}
-
 /** 전체 동기화. 수동 메뉴("지금 동기화") 또는 최초 설정(Sync_setup)에서 호출됩니다. */
 function Sync_all() {
   Sync_diagnosticQuestions();
   Sync_formativeQuestions();
-  Sync_sessionState();
 }
 
 /**
@@ -125,5 +103,4 @@ function Sync_onEditTrigger(e) {
   var sheetName = e.range.getSheet().getName();
   if (sheetName === SHEET_NAMES.DIAGNOSTIC_QUESTIONS) Sync_diagnosticQuestions();
   else if (sheetName === SHEET_NAMES.FORMATIVE_QUESTIONS) Sync_formativeQuestions();
-  else if (sheetName === SHEET_NAMES.SESSION_STATE) Sync_sessionState();
 }

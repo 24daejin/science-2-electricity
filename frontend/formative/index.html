@@ -16,15 +16,11 @@
     <div class="badge"></div>
     <div>
       <h1 id="title-text">형성평가</h1>
-      <p class="muted">선생님이 진행하는 문항에 맞춰 화면이 자동으로 바뀝니다.</p>
+      <p class="muted">문항을 순서대로 자기 속도로 풀어보세요.</p>
     </div>
   </div>
 
   <div id="loading-view" class="card">문항을 불러오는 중입니다...</div>
-
-  <div id="waiting-view" class="card" style="display:none;">
-    <div class="status-banner">선생님이 문항을 시작하기를 기다리는 중이에요…</div>
-  </div>
 
   <div id="quiz-view" class="card" style="display:none;">
     <p class="muted" id="progress-text"></p>
@@ -33,11 +29,6 @@
     <h2 id="question-text"></h2>
 
     <div class="choice-list" id="choice-list"></div>
-    <p class="muted" id="single-mode-hint" style="display:none; margin-top:14px;">선생님이 다음 문항으로 넘기면 자동으로 이어집니다.</p>
-  </div>
-
-  <div id="ended-view" class="card" style="display:none;">
-    <h2>이 소단원 형성평가가 종료되었어요.</h2>
   </div>
 
   <div id="error-view" class="card error" style="display:none;"></div>
@@ -68,37 +59,27 @@
     '6': '전기와 자기가 만드는 힘',
   };
 
-  let questionsById = {};
-  let questionsList = []; // 소단원 전체 문항(일괄 배포 모드에서 순서대로 사용)
+  let questionsList = []; // 소단원 전체 문항(순서대로 자기 속도로 풀이)
   let attemptCounts = {}; // questionId -> 지금까지의 시도 횟수(이번 세션 포함해서 갱신)
-  let currentQuestionId = null;
   let selectedChoice = null;
   let selectedConfidence = null;
-  const latestResultByQuestion = {}; // questionId -> 가장 최근 시도의 정답 여부
-  let stopPolling = null;
-
-  // mode: null(대기) | 'single'(선생님이 문항 하나씩 진행) | 'batch'(소단원 전체를 학생이 자기 속도로 풀이)
-  let mode = null;
   let batchIndex = 0;
 
   const els = {
     loading: document.getElementById('loading-view'),
-    waiting: document.getElementById('waiting-view'),
     quiz: document.getElementById('quiz-view'),
-    ended: document.getElementById('ended-view'),
     error: document.getElementById('error-view'),
     conceptTag: document.getElementById('concept-tag'),
     progressText: document.getElementById('progress-text'),
     attemptBanner: document.getElementById('attempt-banner'),
     questionText: document.getElementById('question-text'),
     choiceList: document.getElementById('choice-list'),
-    singleModeHint: document.getElementById('single-mode-hint'),
     modalOverlay: document.getElementById('feedback-modal'),
     modalBox: document.getElementById('feedback-modal-box'),
   };
 
   function showView(name) {
-    ['loading', 'waiting', 'quiz', 'ended', 'error'].forEach((v) => {
+    ['loading', 'quiz', 'error'].forEach((v) => {
       els[v].style.display = v === name ? 'block' : 'none';
     });
   }
@@ -112,9 +93,7 @@
     document.getElementById('title-text').textContent = `형성평가 · ${subunitId}. ${SUBUNIT_NAMES[subunitId]}`;
 
     try {
-      const questions = await fetchFormativeQuestionsFS(subunitId);
-      questionsList = questions;
-      questions.forEach((q) => { questionsById[q.questionId] = q; });
+      questionsList = await fetchFormativeQuestionsFS(subunitId);
       attemptCounts = await callApi('getFormativeAttemptCounts', {}).catch(() => ({}));
     } catch (err) {
       showView('error');
@@ -124,52 +103,13 @@
 
     initDropoutTracking(`formative-subunit-${subunitId}`);
 
-    // 2.5초 폴링 대신 Firestore 실시간 리스너로, 우리 반+이 소단원의 세션 상태를 구독합니다.
-    stopPolling = watchSessionState(user.classroom, subunitId, onSessionUpdate);
+    batchIndex = 0;
+    renderBatchQuestion();
   }
 
-  function onSessionUpdate(state) {
-    if (state.status === '종료') {
-      mode = null;
-      showView('ended');
-      if (stopPolling) stopPolling();
-      return;
-    }
-
-    if (state.status === '일괄') {
-      if (mode !== 'batch') {
-        mode = 'batch';
-        batchIndex = 0;
-        renderBatchQuestion();
-      }
-      return;
-    }
-
-    if (state.status !== '진행중' || !state.currentQuestionId || !questionsById[state.currentQuestionId]) {
-      mode = null;
-      showView('waiting');
-      return;
-    }
-
-    if (mode !== 'single' || state.currentQuestionId !== currentQuestionId) {
-      mode = 'single';
-      currentQuestionId = state.currentQuestionId;
-      renderQuestion(questionsById[currentQuestionId]);
-    }
-  }
-
-  // 선생님이 문항을 하나씩 진행하는 모드
-  function renderQuestion(q) {
-    showView('quiz');
-    els.progressText.textContent = '';
-    els.singleModeHint.style.display = 'block';
-    renderChoices(q);
-  }
-
-  // 학생이 소단원 전체 문항을 자기 속도로 풀어나가는 모드
+  // 학생이 소단원 전체 문항을 자기 속도로 풀어나갑니다(교사의 문항별 진행 제어 없이 바로 시작).
   function renderBatchQuestion() {
     showView('quiz');
-    els.singleModeHint.style.display = 'none';
     if (batchIndex >= questionsList.length) {
       els.progressText.textContent = '';
       els.attemptBanner.style.display = 'none';
@@ -251,13 +191,11 @@
     followupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // 확신도 선택 -> 정오답 공개 + 피드백을 팝업으로 표시. "확인"을 누르면
-  // 배치 모드는 다음 문항으로 자동 진행, 단일(선생님 진행) 모드는 팝업만 닫힘.
+  // 확신도 선택 -> 정오답 공개 + 피드백을 팝업으로 표시. "확인"을 누르면 다음 문항으로 자동 진행.
   function onConfidenceSelected(q, tag) {
     selectedConfidence = tag;
 
     const isCorrect = selectedChoice === q.answer;
-    latestResultByQuestion[q.questionId] = isCorrect;
 
     choiceButtons().forEach((c) => {
       const num = Number(c.dataset.choiceNum);
@@ -275,11 +213,8 @@
         : '관련 내용 답하기로 이 개념 다시 살펴보기';
 
     showFeedbackModal(isCorrect, q.feedback[feedbackKey] || '', chatbotUrl, chatbotLabel, () => {
-      if (mode === 'batch') {
-        batchIndex += 1;
-        renderBatchQuestion();
-      }
-      // 단일(선생님 진행) 모드는 팝업만 닫고, 선생님이 다음 문항으로 넘길 때까지 대기.
+      batchIndex += 1;
+      renderBatchQuestion();
     });
 
     callApi('submitFormativeResponse', {

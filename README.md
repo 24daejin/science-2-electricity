@@ -27,18 +27,19 @@
    │  ① authToken을 CacheService로 검증(역할: 학생/교사, 순번, 이름, 반, 번호)
    │  ② SpreadsheetApp으로 Google Sheets 읽기/쓰기 (로그인 검증, 응답/로그 저장, 명단·반코드 CRUD)
    │  ③ UrlFetchApp으로 Claude API 서버측 프록시 호출 (API 키 미노출)
-   │  ④ 서비스 계정으로 Firestore에 문항·세션 상태 동기화 (Sync.js, 시트 수정 시 자동)
+   │  ④ 서비스 계정으로 Firestore에 문항 동기화(Sync.js, 시트 수정 시 자동) +
+   │     반별 활성 활동은 저장 시점에 바로 반영(ActiveActivity.js)
    ▼                                              ▼
 [Google Sheets: 마스터 스프레드시트]      [Firestore: diagnosticQuestions/
-  ← 교사가 편집하는 SSOT                     formativeQuestions/sessionState]
+  ← 교사가 편집하는 SSOT                     formativeQuestions/classActiveActivity]
                                               ▲
                                               │ 브라우저가 직접 읽음(빠름, 폴링 없음)
                                     [학생/교사 브라우저]
 ```
 
-- **왜 Sheets와 Firestore를 같이 쓰나**: 애초에 GitHub Pages + Apps Script(+ Google Sheets SSOT) 조합만 쓰기로 확정했었지만, Apps Script가 요청마다 스프레드시트를 새로 여는 구조라 형성평가의 2.5초 폴링이 전체를 느리게 만드는 문제가 있었습니다. 그래서 **교사의 편집 경험은 그대로 Sheets로 유지**하되, **학생이 자주 읽는 데이터(문항, 세션 진행 상태)만 Firestore로 미러링**해서 그 부분만 빠르게 만들었습니다 — 로그인·응답저장·챗봇·명단관리처럼 정확성이 중요하고 반복 호출되지 않는 부분은 그대로 Apps Script+Sheets입니다. 자세한 설정은 [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) 참고.
+- **왜 Sheets와 Firestore를 같이 쓰나**: 애초에 GitHub Pages + Apps Script(+ Google Sheets SSOT) 조합만 쓰기로 확정했었지만, Apps Script가 요청마다 스프레드시트를 새로 여는 구조라 형성평가의 2.5초 폴링이 전체를 느리게 만드는 문제가 있었습니다. 그래서 **교사의 편집 경험은 그대로 Sheets로 유지**하되, **학생이 자주 읽는 데이터(문항, 반별 활성 활동)만 Firestore로 미러링**해서 그 부분만 빠르게 만들었습니다 — 로그인·응답저장·챗봇·명단관리처럼 정확성이 중요하고 반복 호출되지 않는 부분은 그대로 Apps Script+Sheets입니다. 자세한 설정은 [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) 참고.
 - **CORS 우회**: Apps Script로 보내는 모든 POST 요청은 `Content-Type: text/plain`으로 전송하고, 서버에서 `JSON.parse(e.postData.contents)`로 수동 파싱합니다. `application/json`을 쓰면 preflight(OPTIONS) 요청이 발생하고 Apps Script는 이를 지원하지 않아 실패합니다. **절대 `application/json`을 쓰지 마십시오.**
-- **실시간 동기화**: 형성평가의 세션 진행 상태는 더 이상 폴링하지 않고, 학생 브라우저가 Firestore `sessionState` 문서를 실시간 리스너(`onSnapshot`)로 직접 구독합니다. 교사가 세션_상태 시트를 수정하면 Apps Script가 Firestore로 동기화하고, 그 순간 모든 학생 화면이 즉시 갱신됩니다.
+- **실시간 동기화**: 반별 활성 활동은 폴링하지 않고, 학생 브라우저가 Firestore `classActiveActivity` 문서를 실시간 리스너(`onSnapshot`)로 직접 구독합니다. 교사가 메인 화면에서 활동 체크박스를 켜면 즉시 Firestore에 반영되고, 그 순간 모든 학생 화면이 즉시 갱신됩니다. 형성평가는 교사의 문항별 진행 제어 없이, 활동이 열리면 학생이 소단원 전체 문항을 곧바로 자기 속도로 풉니다.
 - **이탈(탭 전환) 감지의 한계**: `document.hidden` / `visibilitychange` 이벤트로 **감지·로그만** 남깁니다. 브라우저가 다른 탭 이동을 막거나 화면을 잠그는 것은 웹 기술로 불가능하므로 시도하지 않습니다. 교사는 이 로그를 참고 자료로만 활용해야 합니다.
 
 ## 디렉터리 구조
@@ -51,7 +52,7 @@ frontend/           GitHub Pages에 그대로 배포되는 정적 사이트
   chatbot/                "관련 내용 답하기"(소크라테스식 챗봇)
   roster/                  교사용 학생명단·반코드 관리
   assets/js/            config.js(설정) · auth.js(로그인/세션) · api.js(Apps Script 호출 공통) ·
-                         firebase.js(Firestore 읽기: 문항·세션 상태 실시간 구독) ·
+                         firebase.js(Firestore 읽기: 문항·반별 활성 활동 실시간 구독) ·
                          visibility.js(이탈 감지) · confidence.js(확신도 매핑)
 apps-script/         clasp로 관리하는 Apps Script 프로젝트 소스 (Sync.js/FirestoreClient.js가 Firestore 동기화 담당)
 docs/                배포/운영 가이드
@@ -70,11 +71,11 @@ docs/                배포/운영 가이드
 | 진단평가_응답 / 형성평가_응답 | 학생 응답, 확신도, 정오답, 제출시각 | Apps Script가 최초 실행 시 자동 생성 |
 | 챗봇_로그 | 학생-챗봇 전체 대화 | Apps Script가 최초 실행 시 자동 생성 |
 | 이탈_로그 | 탭 전환 감지 로그 | Apps Script가 최초 실행 시 자동 생성 |
-| 세션_상태 | 교사 주도 실시간 진행 상태 | Apps Script가 최초 실행 시 자동 생성, Firestore로 동기화됨 |
+| 반_활성활동 | 반마다 지금 열려 있는 활동(들) | Apps Script가 최초 실행 시 자동 생성, 저장 시점에 Firestore로 즉시 반영 |
 
 현재 마스터 스프레드시트 ID: `1zCWl9O6to8HdAXimDLx6BiMtchSOm3_M5cQ7yiK65l0`
 
-"Firestore로 동기화됨" 표시된 탭은 `diagnosticQuestions`/`formativeQuestions`/`sessionState` Firestore 컬렉션으로 자동 미러링되어, 학생 화면은 시트가 아니라 Firestore에서 직접 읽습니다(속도 때문 — [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) 참고). 교사는 여전히 시트에서만 편집합니다.
+"Firestore로 동기화됨" 표시된 탭은 `diagnosticQuestions`/`formativeQuestions` Firestore 컬렉션으로 자동 미러링되고, `반_활성활동`은 `classActiveActivity` 컬렉션으로 저장 시점에 바로 반영되어, 학생 화면은 시트가 아니라 Firestore에서 직접 읽습니다(속도 때문 — [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) 참고). 교사는 여전히 시트(또는 메인 화면)에서만 편집합니다.
 
 자세한 컬럼 명세는 [docs/DATA_MODEL.md](docs/DATA_MODEL.md) 참고.
 
@@ -92,14 +93,14 @@ docs/                배포/운영 가이드
 - [x] 형성평가 웹앱 (6개 소단원 공용) — 실제 문항 데이터 반영, 헤더 행 수정 완료
 - [x] 오답 재학습 → 챗봇 라우팅
 - [x] "관련 내용 답하기"(소크라테스식 챗봇) 구현
-- [x] 교사 주도 실시간 진행 제어(Firestore 실시간 리스너 + 앱 내 진행 제어 화면) + 이탈 감지
+- [x] 교사 주도 실시간 진행 제어(Firestore 실시간 리스너 + 앱 내 진행 제어 화면) + 이탈 감지 (→ 진행 제어 화면은 이후 제거됨, 아래 "형성평가 진행 제어 제거" 참고)
 - [x] 명단 관리 CRUD + 반코드 관리 — 실제 명단(262명) 반영
 - [x] 배포 가이드 문서
 - [x] Apps Script/GitHub Pages 실배포 완료 (https://24daejin.github.io/science-2-electricity/)
-- [x] 성능 개선: Sheets 읽기 캐싱 + Firestore 미러링(문항·세션 상태)
+- [x] 성능 개선: Sheets 읽기 캐싱 + Firestore 미러링(문항·세션 상태 — 세션 상태는 이후 반별 활성 활동으로 대체됨)
 - [x] 문항 재응시 허용 + 시도 횟수 표시(재접근 시 "N번째 풀고 있어요" 배너)
 - [x] 정오답 피드백 팝업화 + 배치/진단 자동 다음 문항 진행
-- [x] 형성평가 "일괄 배포" 모드(소단원 전체 문항을 학생이 자기 속도로 풀이)
+- [x] 형성평가 "일괄 배포" 모드(소단원 전체 문항을 학생이 자기 속도로 풀이) (→ 이후 유일한 모드가 됨, 아래 "형성평가 진행 제어 제거" 참고)
 - [x] 홈 화면 소단원별 재구성 + 챗봇 명칭을 "관련 내용 답하기"로 변경
 - [x] 교사 대시보드(반별 → 학생별 정답률/진행률, 학생별 전체 이력 — 생기부 참고자료, CSV/텍스트 일괄 다운로드)
 - [x] 점수 시스템(형성평가 정답 시 적립, 문제풀이/교과서활동 유형 구분)
@@ -110,7 +111,7 @@ docs/                배포/운영 가이드
 - [x] 대시보드: 소단원별로 형성평가 결과 + 챗봇 대화 결과(별점) 통합 표시, 소단원별 정답률 막대그래프, "전체 학급 한눈에 보기"(반별 비교 히트맵)
 - [x] 디자인 시스템 리뉴얼(그라디언트 포인트·알약형 버튼·굵은 타이포·피드백 애니메이션) — `style.css` 하나로 전 페이지 일괄 적용
 - [x] 이미지 자산 반영(로고·파비콘·소단원 아이콘·축하 일러스트·챗봇 아바타·정오답 아이콘) — `frontend/assets/images/`
-- [x] 세션 상태를 "반+소단원" 단위로 스코프(반마다 독립적인 진행 상태, 교사 2인 동시 진행 가능)
+- [x] 세션 상태를 "반+소단원" 단위로 스코프(반마다 독립적인 진행 상태, 교사 2인 동시 진행 가능) (→ 세션_상태 시트/기능 자체가 이후 제거됨)
 - [x] 메인 화면 "반별 오늘 활동 지정" 카드 — 반코드만으로는 알 수 없던 "이 반이 지금 뭘 해야 하는지"를 교사가 활동 단위(진단평가/소단원별 형성평가·챗봇·등록 자료)로 지정(옛 "반별 오늘 수업 소단원" 대체)
 - [x] 메인 화면 소단원 카드 "+" 버튼 — 팝업으로 바로 추가 자료(웹앱/링크) 등록
 - [x] 챗봇 AI 루브릭 평가에 교사 검수 단계 추가([챗봇 평가 검수] 화면) — 승인해야 학부모 포털에 공개
@@ -123,5 +124,7 @@ docs/                배포/운영 가이드
 - [x] 학생 홈 화면 재구성: "오늘의 활동" 카드 — 소단원(진단평가 포함)의 활동을 세로 목록으로 전부 보여주되, 교사가 활성화한 것만 실제 버튼으로 눌리고 나머지는 "비활성"이라는 말 없이 그냥 눌리지 않는 줄로 나열(드롭다운 대신 목록형 UI로 개편, 반_활성활동 시트 신설, 세션_상태의 문항별 세부 제어와는 별개)
 - [x] 반별 활동 동시 활성화 — 형성평가를 마친 학생이 곧바로 "관련 내용 답하기"도 하도록, 교사가 같은 소단원 안에서 여러 활동을 체크박스로 동시에 켤 수 있음(반_활성활동의 활성활동키를 콤마로 이어붙인 배열로 확장). 형성평가·관련 내용 답하기는 배운 내용을 마지막에 점검하는 활동이라 목록 맨 뒤(등록 자료 다음)로 순서 조정
 - [x] 챗봇("관련 내용 답하기") 입력창에 음성 인식(마이크) 버튼 — 타자 치기 어려운 태블릿 환경을 위해 브라우저 내장 Web Speech API(ko-KR)로 받아쓰기, 지원 안 하는 브라우저에선 버튼 자동 숨김
+- [x] "형성평가 진행 제어" 기능 제거 — 반별 활성 활동으로 접근 자체가 이미 통제되는 데다, 활동을 동시에 여러 개 열어두는 방식이 자리잡으면서 교사가 문항 하나씩 넘기거나 대기/일괄/종료를 따로 지정할 필요가 없어짐. `session-control/` 페이지, `apps-script/Session.js`, `getSessionState`/`setSessionState` 라우팅, `세션_상태` 시트/Firestore 동기화(`Sync_sessionState`)를 모두 삭제하고, 형성평가는 항상 "소단원 전체 문항을 자기 속도로 풀이"(옛 일괄 배포 모드)로만 동작하도록 단순화
+- [x] 메인 화면의 항상 떠 있던 별도 "진단평가" 카드 제거 — 진단평가도 다른 활동과 동일하게 "반별 오늘 활동 지정"으로만 노출되도록 통일(교사 화면에서도 중복 노출되던 것 정리)
 
 향후 검토: 학기말 생기부 작성을 더 편하게 하기 위한 리포트 내보내기(예: PDF/문서 형식), 교과서 활동 추가 요청 시 개별 웹앱 확장.

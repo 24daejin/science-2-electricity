@@ -12,7 +12,6 @@ var SHEET_NAMES = {
   FORMATIVE_RESPONSES: '형성평가_응답',
   CHATBOT_LOG: '챗봇_로그',
   DROPOUT_LOG: '이탈_로그',
-  SESSION_STATE: '세션_상태',
   SCORE_LOG: '점수_로그',
   CHATBOT_EVAL: '챗봇_평가',
   SUBUNIT_RESOURCES: '소단원_자료',
@@ -85,7 +84,7 @@ function SheetUtils_invalidateCache_(sheetName) {
 
 /**
  * 시트가 없으면 헤더와 함께 새로 만들고, 있으면 그대로 반환합니다.
- * (진단평가_응답/형성평가_응답/챗봇_로그/이탈_로그/세션_상태처럼 Apps Script가 자동 관리하는 탭에 사용)
+ * (진단평가_응답/형성평가_응답/챗봇_로그/이탈_로그/반_활성활동처럼 Apps Script가 자동 관리하는 탭에 사용)
  */
 function SheetUtils_ensureSheet(sheetName, headers) {
   var ss = getSpreadsheet_();

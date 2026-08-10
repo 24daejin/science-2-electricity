@@ -62,7 +62,7 @@
 
     <div class="card" id="class-subunit-card" style="display:none;">
       <h2>반별 오늘 활동 지정</h2>
-      <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 지금 할 활동(진단평가 / 소단원별 형성평가·관련 내용 답하기·교과서 활동 중 하나)을 지정하면, 그 반 학생 홈 화면엔 그 활동만 선택할 수 있게 나타나고 나머지는 목록에 보이기만 하고 비활성화됩니다. 형성평가 문항을 하나씩 넘기는 세부 진행은 [형성평가 진행 제어]에서 계속하세요.</p>
+      <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 그룹(진단평가 / 소단원 1~6)을 고른 뒤, 그 안의 활동(형성평가·관련 내용 답하기·교과서 활동)을 체크박스로 켜면 그 반 학생 홈 화면에서 켜진 활동만 누를 수 있게 나타나요. 여러 개를 동시에 켜둘 수 있어요 — 예를 들어 형성평가를 마친 학생이 바로 이어서 "관련 내용 답하기"도 하도록요. 형성평가 문항을 하나씩 넘기는 세부 진행은 [형성평가 진행 제어]에서 계속하세요.</p>
       <div id="class-subunit-list"></div>
     </div>
 
@@ -146,7 +146,7 @@
   let subunitResources = [];
   let currentUser = null;
   let resourceModalSubunitId = null;
-  let activeActivityKey = ''; // 학생 화면: 우리 반이 지금 할 수 있는 활동 하나(교사가 지정 안 했으면 빈 문자열)
+  let activeActivityKeys = []; // 학생 화면: 우리 반이 지금 할 수 있는 활동들(형성평가 끝낸 학생이 바로 "관련 내용 답하기"로 넘어가는 식으로 동시에 여러 개 켜질 수 있음)
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -167,13 +167,16 @@
       },
     ];
     SUBUNITS.forEach((s) => {
-      const activities = [
-        { key: `formative-${s.id}`, label: '형성평가', url: `formative/index.html?subunit=${s.id}`, popup: false },
-        { key: `chatbot-${s.id}`, label: '관련 내용 답하기', url: `chatbot/index.html?concept=${encodeURIComponent(s.name)}`, popup: false },
-      ];
+      // 형성평가와 "관련 내용 답하기"는 배운 내용을 마지막에 점검하는 활동이라 목록 맨 뒤에 둡니다
+      // (교과서 활동/자료를 먼저 하고 나서 형성평가 → 관련 내용 답하기 순으로 이어지도록).
+      const activities = [];
       resources
         .filter((r) => r.subunitId === s.id)
         .forEach((r) => activities.push({ key: `resource-${r.id}`, label: r.name, url: r.url, popup: true }));
+      activities.push(
+        { key: `formative-${s.id}`, label: '형성평가', url: `formative/index.html?subunit=${s.id}`, popup: false },
+        { key: `chatbot-${s.id}`, label: '관련 내용 답하기', url: `chatbot/index.html?concept=${encodeURIComponent(s.name)}`, popup: false }
+      );
       groups.push({ id: s.id, label: `${s.id}. ${s.name}`, icon: s.id, activities });
     });
     return groups;
@@ -261,20 +264,24 @@
   }
 
   /**
-   * 학생 화면: 선생님이 지정한 활동이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
-   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동만 실제로 눌리는
-   * 버튼이 되고, 나머지는 "비활성"이라는 말 없이 그냥 누를 수 없는 회색 줄로 나열됩니다.
+   * 학생 화면: 선생님이 지정한 활동들이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
+   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동(하나 또는 여러 개 —
+   * 예: 형성평가를 마친 학생이 이어서 "관련 내용 답하기"도 할 수 있게 둘 다 켜둔 경우)만
+   * 실제로 눌리는 버튼이 되고, 나머지는 "비활성"이라는 말 없이 그냥 누를 수 없는 회색 줄로
+   * 나열됩니다.
    */
   function renderStudentActivityCard(container) {
     document.getElementById('subunit-groups-title').textContent = '오늘의 활동';
     document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동만 누를 수 있어요. 나머지는 오늘 할 일 목록으로만 보여요.';
 
-    if (!activeActivityKey) {
+    if (!activeActivityKeys.length) {
       container.innerHTML = '';
       return;
     }
     const groups = activityGroupsFor(subunitResources);
-    const found = findActivity(groups, activeActivityKey);
+    // 활성화된 활동들은 보통 같은 소단원(또는 진단평가) 안에 있으므로, 그중 첫 번째가 속한
+    // 그룹 하나를 보여줍니다.
+    const found = activeActivityKeys.map((k) => findActivity(groups, k)).find(Boolean);
     if (!found) {
       container.innerHTML = '';
       return;
@@ -286,7 +293,7 @@
 
     const rows = group.activities
       .map((a) => {
-        if (a.key === activeActivityKey) {
+        if (activeActivityKeys.includes(a.key)) {
           return `<button type="button" class="btn block" data-activity-key="${a.key}">${escapeHtml(a.label)}</button>`;
         }
         return `<div class="activity-row">${escapeHtml(a.label)}</div>`;
@@ -316,13 +323,13 @@
     });
   }
 
-  /** 학생 화면 전용: 우리 반의 활성 활동을 구독해서, 바뀔 때만 다시 그립니다. */
+  /** 학생 화면 전용: 우리 반의 활성 활동들을 구독해서, 바뀔 때만 다시 그립니다. */
   function startSubunitWatch() {
     if (!currentUser || currentUser.role !== 'student') return;
     if (stopSessionWatch) stopSessionWatch();
-    stopSessionWatch = watchClassActiveActivity(currentUser.classroom, (key) => {
-      if (key === activeActivityKey) return;
-      activeActivityKey = key;
+    stopSessionWatch = watchClassActiveActivity(currentUser.classroom, (keys) => {
+      if (JSON.stringify(keys) === JSON.stringify(activeActivityKeys)) return;
+      activeActivityKeys = keys;
       renderSubunitGroups();
     });
   }
@@ -440,10 +447,14 @@
   });
 
   // ---- 반별 오늘 활동 지정(교사 전용) ----
+  // 반마다 "지금 다루는 그룹(진단평가 또는 소단원)"을 하나 고르고, 그 안의 활동들을 체크박스로
+  // 여러 개 동시에 켤 수 있습니다 — 형성평가를 마친 학생이 곧바로 "관련 내용 답하기"로 넘어갈
+  // 수 있도록 두 개를 같이 켜두는 식입니다.
 
   let stopClassSubunitWatch = null;
   let classroomList = [];
-  let classActiveActivityByClassroom = {};
+  let classActiveActivityByClassroom = {}; // { 반: [활동키, ...] }
+  let teacherSelectedGroupByClassroom = {}; // { 반: 그룹id } — 체크박스로 보여줄 그룹(UI 전용 상태)
 
   async function loadClassSubunitControl() {
     document.getElementById('class-subunit-card').style.display = 'block';
@@ -472,41 +483,77 @@
 
     container.innerHTML = classroomList
       .map((classroom) => {
-        const activeKey = classActiveActivityByClassroom[classroom] || '';
-        const found = findActivity(groups, activeKey);
-        const activeLabel = found
-          ? `<span class="tag">${escapeHtml(found.group.label)} · ${escapeHtml(found.activity.label)}</span>`
+        const activeKeys = classActiveActivityByClassroom[classroom] || [];
+
+        // 체크박스로 보여줄 그룹: 교사가 방금 고른 그룹이 있으면 그걸, 없으면 지금 켜진
+        // 활동이 속한 그룹, 그것도 없으면 첫 번째 그룹(진단평가)을 기본으로 둡니다.
+        if (!teacherSelectedGroupByClassroom[classroom]) {
+          const firstActive = activeKeys.map((k) => findActivity(groups, k)).find(Boolean);
+          teacherSelectedGroupByClassroom[classroom] = firstActive ? firstActive.group.id : groups[0].id;
+        }
+        const selectedGroup = groups.find((g) => g.id === teacherSelectedGroupByClassroom[classroom]) || groups[0];
+
+        const activeLabels = activeKeys
+          .map((k) => findActivity(groups, k))
+          .filter(Boolean)
+          .map((f) => f.activity.label);
+        const activeLabel = activeLabels.length
+          ? `<span class="tag">${escapeHtml(selectedGroup.label)} · ${escapeHtml(activeLabels.join(', '))}</span>`
           : '<span class="muted">설정 안 됨</span>';
-        const optgroups = groups
-          .map(
-            (g) => `
-          <optgroup label="${escapeHtml(g.label)}">
-            ${g.activities.map((a) => `<option value="${a.key}" ${a.key === activeKey ? 'selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
-          </optgroup>`
-          )
+
+        const groupOptions = groups
+          .map((g) => `<option value="${g.id}" ${g.id === selectedGroup.id ? 'selected' : ''}>${escapeHtml(g.label)}</option>`)
           .join('');
+
+        const checkboxes = selectedGroup.activities
+          .map((a) => {
+            const checked = activeKeys.includes(a.key);
+            return `
+            <label class="activity-checkbox">
+              <input type="checkbox" data-activity-checkbox="${classroom}" data-key="${a.key}" ${checked ? 'checked' : ''} />
+              ${escapeHtml(a.label)}
+            </label>`;
+          })
+          .join('');
+
         return `
         <div class="status-banner" style="background:var(--color-surface); border:1px solid var(--color-border);">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
             <strong style="color:var(--color-text);">${classroom}반</strong>
             ${activeLabel}
           </div>
-          <select class="activity-select" data-activity-select="${classroom}">
-            <option value="" ${activeKey ? '' : 'selected'}>활동 선택 안 함(해제)</option>
-            ${optgroups}
+          <select class="activity-select" data-group-select="${classroom}" style="margin-bottom:10px;">
+            ${groupOptions}
           </select>
+          <div class="activity-checkbox-list">
+            ${checkboxes}
+          </div>
         </div>`;
       })
       .join('');
 
-    container.querySelectorAll('[data-activity-select]').forEach((sel) => {
-      sel.addEventListener('change', () => setClassActiveActivity(sel.dataset.activitySelect, sel.value));
+    container.querySelectorAll('[data-group-select]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const classroom = sel.dataset.groupSelect;
+        teacherSelectedGroupByClassroom[classroom] = sel.value;
+        // 다른 그룹으로 바꾸면 이전 그룹에서 켜둔 활동은 의미가 없으니 비우고 새로 고릅니다.
+        setClassActiveActivities(classroom, []);
+      });
+    });
+    container.querySelectorAll('[data-activity-checkbox]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const classroom = cb.dataset.activityCheckbox;
+        const key = cb.dataset.key;
+        const current = classActiveActivityByClassroom[classroom] || [];
+        const next = cb.checked ? current.concat([key]) : current.filter((k) => k !== key);
+        setClassActiveActivities(classroom, next);
+      });
     });
   }
 
-  async function setClassActiveActivity(classroom, activityKey) {
+  async function setClassActiveActivities(classroom, activityKeys) {
     try {
-      await callApi('setClassActiveActivity', { classroom, activityKey });
+      await callApi('setClassActiveActivity', { classroom, activityKeys });
     } catch (err) {
       alert('활동 지정에 실패했습니다: ' + err.message);
     }

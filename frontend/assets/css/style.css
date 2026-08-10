@@ -499,6 +499,31 @@ p.muted,
   font-size: 1rem;
 }
 
+/* 교사 화면: 반별 오늘 활동 지정 카드의 활동 체크박스(같은 소단원에서 여러 개 동시 활성화 가능) */
+.activity-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.activity-checkbox input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 /* 소단원 카드의 "활동" 링크를 새 탭 대신 작은 팝업 창으로 열 때 쓰는 모달 */
 .activity-modal-box {
   position: relative;

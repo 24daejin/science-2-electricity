@@ -42,6 +42,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    match /classActiveActivity/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

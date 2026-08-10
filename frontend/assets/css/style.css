@@ -461,6 +461,27 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* 학생 홈 화면의 "오늘의 활동" 드롭다운 + 교사의 반별 활동 지정 드롭다운 공용 스타일 */
+.activity-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  font-size: 0.96rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.activity-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.activity-select option:disabled {
+  color: var(--color-text-muted);
+}
+
 /* 소단원 카드의 "활동" 링크를 새 탭 대신 작은 팝업 창으로 열 때 쓰는 모달 */
 .activity-modal-box {
   position: relative;

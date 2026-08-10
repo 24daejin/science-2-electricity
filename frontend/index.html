@@ -61,12 +61,12 @@
     </div>
 
     <div class="card" id="class-subunit-card" style="display:none;">
-      <h2>반별 오늘 수업 소단원</h2>
-      <p class="muted">반코드를 준 것만으로는 학생이 어느 소단원에 참여 중인지 정해지지 않아요. 반마다 지금 진행할 소단원을 골라두면, 그 반 학생 홈 화면에 해당 소단원이 강조 표시됩니다. 문항별 세부 진행(하나씩 넘기기/일괄 배포)은 [형성평가 진행 제어]에서 계속하세요.</p>
+      <h2>반별 오늘 활동 지정</h2>
+      <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 지금 할 활동(진단평가 / 소단원별 형성평가·관련 내용 답하기·교과서 활동 중 하나)을 지정하면, 그 반 학생 홈 화면엔 그 활동만 선택할 수 있게 나타나고 나머지는 목록에 보이기만 하고 비활성화됩니다. 형성평가 문항을 하나씩 넘기는 세부 진행은 [형성평가 진행 제어]에서 계속하세요.</p>
       <div id="class-subunit-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="diagnostic-card">
       <h2>진단평가</h2>
       <p class="muted">단원을 시작하기 전, 선수학습을 확인해요.</p>
       <a class="menu-item" href="diagnostic/index.html">
@@ -74,9 +74,9 @@
       </a>
     </div>
 
-    <div class="card">
-      <h2>소단원별 학습</h2>
-      <p class="muted">소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.</p>
+    <div class="card" id="subunit-groups-card">
+      <h2 id="subunit-groups-title">소단원별 학습</h2>
+      <p class="muted" id="subunit-groups-desc">소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.</p>
       <div id="subunit-groups"></div>
     </div>
 
@@ -146,10 +146,45 @@
   let subunitResources = [];
   let currentUser = null;
   let resourceModalSubunitId = null;
-  let activeSubunitIds = new Set(); // 학생 화면: 우리 반에 지금 지정된 소단원 id들(교사가 하나도 안 정했으면 빈 Set)
+  let activeActivityKey = ''; // 학생 화면: 우리 반이 지금 할 수 있는 활동 하나(교사가 지정 안 했으면 빈 문자열)
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /**
+   * "진단평가" + 6개 소단원을 하나의 목록으로 만듭니다. 각 그룹은 활동(형성평가/관련 내용
+   * 답하기/등록된 교과서 활동)을 갖고, 각 활동은 고유한 활동키를 가집니다 — 교사가 반마다
+   * 이 활동키 하나만 지정하면 학생 화면에 그 활동만 클릭 가능하게 나타납니다.
+   */
+  function activityGroupsFor(resources) {
+    const groups = [
+      {
+        id: 'diagnostic',
+        label: '진단평가',
+        icon: null,
+        activities: [{ key: 'diagnostic', label: '진단평가 시작하기', url: 'diagnostic/index.html', popup: false }],
+      },
+    ];
+    SUBUNITS.forEach((s) => {
+      const activities = [
+        { key: `formative-${s.id}`, label: '형성평가', url: `formative/index.html?subunit=${s.id}`, popup: false },
+        { key: `chatbot-${s.id}`, label: '관련 내용 답하기', url: `chatbot/index.html?concept=${encodeURIComponent(s.name)}`, popup: false },
+      ];
+      resources
+        .filter((r) => r.subunitId === s.id)
+        .forEach((r) => activities.push({ key: `resource-${r.id}`, label: r.name, url: r.url, popup: true }));
+      groups.push({ id: s.id, label: `${s.id}. ${s.name}`, icon: s.id, activities });
+    });
+    return groups;
+  }
+
+  function findActivity(groups, activityKey) {
+    for (const g of groups) {
+      const a = g.activities.find((a) => a.key === activityKey);
+      if (a) return { group: g, activity: a };
+    }
+    return null;
   }
 
   async function loadSubunitResources() {
@@ -164,22 +199,24 @@
   function renderSubunitGroups() {
     const container = document.getElementById('subunit-groups');
     const isTeacher = currentUser && currentUser.role === 'teacher';
-    const isStudent = currentUser && currentUser.role === 'student';
 
-    // 교사는 관리를 위해 6개 소단원을 전부 보고, 학생은 선생님이 지금 지정해둔 소단원만 봅니다
-    // (지정된 게 없으면 아무 카드도 안 보이는 게 맞음 — 아직 시작 안 한 상태이므로).
-    const subunitsToShow = isStudent ? SUBUNITS.filter((s) => activeSubunitIds.has(s.id)) : SUBUNITS;
+    if (!isTeacher) {
+      renderStudentActivityCard(container);
+      return;
+    }
 
-    container.innerHTML = subunitsToShow.map((s) => {
+    // 교사는 관리·미리보기를 위해 6개 소단원을 전부, 모든 활동을 클릭 가능한 채로 봅니다
+    // (진단평가는 별도 카드로 이미 항상 노출됨). 반별로 어떤 활동을 지정할지는 위
+    // "반별 오늘 활동 지정" 카드에서 따로 합니다.
+    document.getElementById('subunit-groups-title').textContent = '소단원별 학습';
+    document.getElementById('subunit-groups-desc').textContent = '소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.';
+
+    container.innerHTML = SUBUNITS.map((s) => {
       const resources = subunitResources.filter((r) => r.subunitId === s.id);
       const activityLinks = resources
         .map((r) => `<button type="button" class="btn secondary" data-open-activity="${escapeHtml(r.url)}" style="text-decoration:none;">${escapeHtml(r.name)}</button>`)
         .join('');
-      const addBtn = isTeacher
-        ? `<button type="button" class="subunit-add-btn" data-add-resource="${s.id}" title="이 소단원에 자료 추가">+</button>`
-        : '';
-      // 등록된 자료(교과서 활동 등)가 있으면 "활동" 토글 버튼을 형성평가/관련 내용 답하기보다 위에 두고,
-      // 눌러야 목록이 펼쳐지게 해서 활동이 늘어나도 카드가 어지러워지지 않게 합니다.
+      const addBtn = `<button type="button" class="subunit-add-btn" data-add-resource="${s.id}" title="이 소단원에 자료 추가">+</button>`;
       const activitiesSection = resources.length
         ? `
         <div class="subunit-group-links" style="margin-bottom:8px;">
@@ -221,27 +258,70 @@
     container.querySelectorAll('[data-open-activity]').forEach((btn) => {
       btn.addEventListener('click', () => openActivityModal(btn.dataset.openActivity));
     });
+  }
 
-    // 이제 학생 화면엔 활성 소단원만 보이므로, 강조 표시는 유지하되(카드가 하나여도 시각적으로 자연스러움)
-    // 굳이 필요하진 않지만 남겨둡니다.
-    subunitsToShow.forEach((s) => {
-      const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
-      if (el) el.classList.toggle('subunit-group-active', activeSubunitIds.has(s.id));
+  /**
+   * 학생 화면: 선생님이 지정한 활동이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
+   * 그 안에 그 그룹의 모든 활동을 드롭다운으로 나열하되 지정된 활동만 선택 가능하게(나머지는
+   * disabled) 합니다 — "확인은 할 수 있지만 활성화 안 된 것처럼" 보이도록.
+   */
+  function renderStudentActivityCard(container) {
+    document.getElementById('subunit-groups-title').textContent = '오늘의 활동';
+    document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동만 선택할 수 있어요. 다른 활동은 목록에 보이지만 아직 활성화되지 않았어요.';
+
+    if (!activeActivityKey) {
+      container.innerHTML = '';
+      return;
+    }
+    const groups = activityGroupsFor(subunitResources);
+    const found = findActivity(groups, activeActivityKey);
+    if (!found) {
+      container.innerHTML = '';
+      return;
+    }
+    const { group } = found;
+
+    const options = group.activities
+      .map((a) => {
+        const isActive = a.key === activeActivityKey;
+        return `<option value="${a.key}" ${isActive ? '' : 'disabled'}>${escapeHtml(a.label)}${isActive ? '' : ' (비활성)'}</option>`;
+      })
+      .join('');
+    const iconHtml = group.icon
+      ? `<img src="assets/images/subunit-${group.icon}.png" alt="" class="subunit-icon" />`
+      : '';
+
+    container.innerHTML = `
+    <div class="subunit-group subunit-group-active" data-subunit-id="${group.id}">
+      <div class="subunit-group-head">
+        <div class="subunit-group-head-left">
+          ${iconHtml}
+          <strong>${escapeHtml(group.label)}</strong>
+        </div>
+      </div>
+      <select class="activity-select" id="student-activity-select">
+        <option value="" disabled selected>오늘의 활동을 선택하세요</option>
+        ${options}
+      </select>
+    </div>`;
+
+    const select = document.getElementById('student-activity-select');
+    select.addEventListener('change', () => {
+      const a = group.activities.find((x) => x.key === select.value);
+      if (!a) return;
+      if (a.popup) openActivityModal(a.url);
+      else window.location.href = a.url;
     });
   }
 
-  /** 학생 화면 전용: 우리 반의 세션 상태를 구독해서, 지금 지정된 소단원이 바뀔 때만 다시 그립니다. */
+  /** 학생 화면 전용: 우리 반의 활성 활동을 구독해서, 바뀔 때만 다시 그립니다. */
   function startSubunitWatch() {
     if (!currentUser || currentUser.role !== 'student') return;
     if (stopSessionWatch) stopSessionWatch();
-    stopSessionWatch = watchClassSessionStates(currentUser.classroom, (byId) => {
-      const newActive = new Set(
-        Object.keys(byId).filter((id) => byId[id].status === '진행중' || byId[id].status === '일괄')
-      );
-      const changed =
-        newActive.size !== activeSubunitIds.size || [...newActive].some((id) => !activeSubunitIds.has(id));
-      activeSubunitIds = newActive;
-      if (changed) renderSubunitGroups();
+    stopSessionWatch = watchClassActiveActivity(currentUser.classroom, (key) => {
+      if (key === activeActivityKey) return;
+      activeActivityKey = key;
+      renderSubunitGroups();
     });
   }
 
@@ -357,11 +437,11 @@
     if (e.target === resourceEls.overlay) closeResourceModal();
   });
 
-  // ---- 반별 오늘 수업 소단원(교사 전용) ----
+  // ---- 반별 오늘 활동 지정(교사 전용) ----
 
   let stopClassSubunitWatch = null;
   let classroomList = [];
-  let classSubunitByClassroom = {};
+  let classActiveActivityByClassroom = {};
 
   async function loadClassSubunitControl() {
     document.getElementById('class-subunit-card').style.display = 'block';
@@ -378,55 +458,55 @@
     }
 
     if (stopClassSubunitWatch) stopClassSubunitWatch();
-    stopClassSubunitWatch = watchAllClassSessionStates((list) => {
-      classSubunitByClassroom = {};
-      list.forEach((item) => {
-        if (item.status === '진행중' || item.status === '일괄') {
-          classSubunitByClassroom[item.classroom] = { subunitId: item.subunitId, status: item.status };
-        }
-      });
+    stopClassSubunitWatch = watchAllClassActiveActivities((byClassroom) => {
+      classActiveActivityByClassroom = byClassroom;
       renderClassSubunitList();
     });
   }
 
   function renderClassSubunitList() {
     const container = document.getElementById('class-subunit-list');
+    const groups = activityGroupsFor(subunitResources);
+
     container.innerHTML = classroomList
       .map((classroom) => {
-        const active = classSubunitByClassroom[classroom];
-        const activeLabel = active
-          ? `<span class="tag">${active.subunitId}. ${(SUBUNITS.find((s) => s.id === active.subunitId) || {}).name || ''} · ${active.status === '일괄' ? '일괄 배포 중' : '진행 중'}</span>`
+        const activeKey = classActiveActivityByClassroom[classroom] || '';
+        const found = findActivity(groups, activeKey);
+        const activeLabel = found
+          ? `<span class="tag">${escapeHtml(found.group.label)} · ${escapeHtml(found.activity.label)}</span>`
           : '<span class="muted">설정 안 됨</span>';
-        const buttons = SUBUNITS.map(
-          (s) => `<button type="button" class="choice" data-set-classroom="${classroom}" data-set-subunit="${s.id}" style="${active && active.subunitId === s.id ? 'border-color:var(--color-primary); background:#eef1ff;' : ''}">${s.id}</button>`
-        ).join('');
+        const optgroups = groups
+          .map(
+            (g) => `
+          <optgroup label="${escapeHtml(g.label)}">
+            ${g.activities.map((a) => `<option value="${a.key}" ${a.key === activeKey ? 'selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
+          </optgroup>`
+          )
+          .join('');
         return `
         <div class="status-banner" style="background:var(--color-surface); border:1px solid var(--color-border);">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
             <strong style="color:var(--color-text);">${classroom}반</strong>
             ${activeLabel}
           </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            ${buttons}
-            <button type="button" class="choice" data-clear-classroom="${classroom}">해제</button>
-          </div>
+          <select class="activity-select" data-activity-select="${classroom}">
+            <option value="" ${activeKey ? '' : 'selected'}>활동 선택 안 함(해제)</option>
+            ${optgroups}
+          </select>
         </div>`;
       })
       .join('');
 
-    container.querySelectorAll('[data-set-classroom]').forEach((btn) => {
-      btn.addEventListener('click', () => setClassActiveSubunit(btn.dataset.setClassroom, btn.dataset.setSubunit));
-    });
-    container.querySelectorAll('[data-clear-classroom]').forEach((btn) => {
-      btn.addEventListener('click', () => setClassActiveSubunit(btn.dataset.clearClassroom, ''));
+    container.querySelectorAll('[data-activity-select]').forEach((sel) => {
+      sel.addEventListener('change', () => setClassActiveActivity(sel.dataset.activitySelect, sel.value));
     });
   }
 
-  async function setClassActiveSubunit(classroom, subunitId) {
+  async function setClassActiveActivity(classroom, activityKey) {
     try {
-      await callApi('setClassActiveSubunit', { classroom, subunitId });
+      await callApi('setClassActiveActivity', { classroom, activityKey });
     } catch (err) {
-      alert('소단원 지정에 실패했습니다: ' + err.message);
+      alert('활동 지정에 실패했습니다: ' + err.message);
     }
   }
 
@@ -441,6 +521,9 @@
       loadClassSubunitControl();
       loadPendingEvalBadge();
     } else {
+      // 학생 화면에서는 진단평가도 다른 활동과 마찬가지로 선생님이 지정했을 때만 필요하므로,
+      // 항상 떠 있던 별도 카드는 숨기고 "오늘의 활동" 카드 하나로 통합합니다.
+      document.getElementById('diagnostic-card').style.display = 'none';
       loadMyScore();
       startSubunitWatch();
     }

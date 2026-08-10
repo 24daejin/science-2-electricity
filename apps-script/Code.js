@@ -54,11 +54,12 @@ function getRoutes_() {
     // 이탈(탭 전환) 로그
     logDropout: { fn: DropoutLog_record, auth: true },
 
-    // 교사 주도 실시간 진행 상태 (반+소단원 단위)
+    // 교사 주도 실시간 진행 상태 (반+소단원 단위, 문항 하나씩 넘기는 세부 진행용)
     getSessionState: { fn: Session_getState, auth: true },
     setSessionState: { fn: Session_setState, auth: true }, // 교사 여부는 핸들러 내부에서 검사
-    setClassActiveSubunit: { fn: Session_setClassActiveSubunit, auth: true }, // 메인 화면의 "반별 오늘 수업 소단원" 빠른 설정
-    getAllSessionStates: { fn: Session_getAllStates, auth: true },
+
+    // 반별로 "오늘 학생이 할 수 있는 활동" 하나만 지정(홈 화면 노출/드롭다운 활성화용)
+    setClassActiveActivity: { fn: ActiveActivity_set, auth: true },
 
     // 반 공통 로그인코드 관리 (교사 전용, 핸들러 내부에서 검사)
     listClassCodes: { fn: ClassCode_list, auth: true },

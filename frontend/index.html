@@ -102,6 +102,13 @@
   </div>
 </div>
 
+<div id="activity-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box activity-modal-box">
+    <button type="button" class="activity-modal-close" id="activity-modal-close" aria-label="닫기">×</button>
+    <iframe id="activity-modal-iframe" class="activity-modal-iframe" src="" title="활동"></iframe>
+  </div>
+</div>
+
 <div id="resource-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box">
     <h2 id="resource-modal-title">자료 추가</h2>
@@ -139,6 +146,7 @@
   let subunitResources = [];
   let currentUser = null;
   let resourceModalSubunitId = null;
+  let activeSubunitIds = new Set(); // 학생 화면: 우리 반에 지금 지정된 소단원 id들(교사가 하나도 안 정했으면 빈 Set)
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -156,22 +164,28 @@
   function renderSubunitGroups() {
     const container = document.getElementById('subunit-groups');
     const isTeacher = currentUser && currentUser.role === 'teacher';
-    container.innerHTML = SUBUNITS.map((s) => {
+    const isStudent = currentUser && currentUser.role === 'student';
+
+    // 교사는 관리를 위해 6개 소단원을 전부 보고, 학생은 선생님이 지금 지정해둔 소단원만 봅니다
+    // (지정된 게 없으면 아무 카드도 안 보이는 게 맞음 — 아직 시작 안 한 상태이므로).
+    const subunitsToShow = isStudent ? SUBUNITS.filter((s) => activeSubunitIds.has(s.id)) : SUBUNITS;
+
+    container.innerHTML = subunitsToShow.map((s) => {
       const resources = subunitResources.filter((r) => r.subunitId === s.id);
       const activityLinks = resources
-        .map((r) => `<a class="btn secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="text-decoration:none;">${escapeHtml(r.name)}</a>`)
+        .map((r) => `<button type="button" class="btn secondary" data-open-activity="${escapeHtml(r.url)}" style="text-decoration:none;">${escapeHtml(r.name)}</button>`)
         .join('');
       const addBtn = isTeacher
         ? `<button type="button" class="subunit-add-btn" data-add-resource="${s.id}" title="이 소단원에 자료 추가">+</button>`
         : '';
-      // 등록된 자료(교과서 활동 등)가 있으면 "활동들" 토글 버튼을 형성평가/관련 내용 답하기보다 위에 두고,
+      // 등록된 자료(교과서 활동 등)가 있으면 "활동" 토글 버튼을 형성평가/관련 내용 답하기보다 위에 두고,
       // 눌러야 목록이 펼쳐지게 해서 활동이 늘어나도 카드가 어지러워지지 않게 합니다.
       const activitiesSection = resources.length
         ? `
         <div class="subunit-group-links" style="margin-bottom:8px;">
-          <button type="button" class="btn secondary" data-toggle-activities="${s.id}">활동들 (${resources.length}) ▾</button>
+          <button type="button" class="btn secondary" data-toggle-activities="${s.id}">활동 (${resources.length}) ▾</button>
         </div>
-        <div class="subunit-group-links subunit-activities-list" id="activities-list-${s.id}" style="display:none;">
+        <div class="subunit-group-links subunit-activities-list" id="activities-list-${s.id}" style="display:none; margin-bottom:8px;">
           ${activityLinks}
         </div>`
         : '';
@@ -204,21 +218,55 @@
         btn.textContent = btn.textContent.replace(isOpen ? '▴' : '▾', isOpen ? '▾' : '▴');
       });
     });
+    container.querySelectorAll('[data-open-activity]').forEach((btn) => {
+      btn.addEventListener('click', () => openActivityModal(btn.dataset.openActivity));
+    });
 
-    if (stopSessionWatch) stopSessionWatch();
-    if (currentUser && currentUser.role === 'student') {
-      // 학생은 자기 반에 배정된 소단원만 강조 표시(반마다 진행 상태가 다를 수 있음).
-      stopSessionWatch = watchClassSessionStates(currentUser.classroom, (byId) => {
-        SUBUNITS.forEach((s) => {
-          const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
-          if (!el) return;
-          const state = byId[s.id];
-          const isActive = state && (state.status === '진행중' || state.status === '일괄');
-          el.classList.toggle('subunit-group-active', !!isActive);
-        });
-      });
-    }
+    // 이제 학생 화면엔 활성 소단원만 보이므로, 강조 표시는 유지하되(카드가 하나여도 시각적으로 자연스러움)
+    // 굳이 필요하진 않지만 남겨둡니다.
+    subunitsToShow.forEach((s) => {
+      const el = container.querySelector(`[data-subunit-id="${s.id}"]`);
+      if (el) el.classList.toggle('subunit-group-active', activeSubunitIds.has(s.id));
+    });
   }
+
+  /** 학생 화면 전용: 우리 반의 세션 상태를 구독해서, 지금 지정된 소단원이 바뀔 때만 다시 그립니다. */
+  function startSubunitWatch() {
+    if (!currentUser || currentUser.role !== 'student') return;
+    if (stopSessionWatch) stopSessionWatch();
+    stopSessionWatch = watchClassSessionStates(currentUser.classroom, (byId) => {
+      const newActive = new Set(
+        Object.keys(byId).filter((id) => byId[id].status === '진행중' || byId[id].status === '일괄')
+      );
+      const changed =
+        newActive.size !== activeSubunitIds.size || [...newActive].some((id) => !activeSubunitIds.has(id));
+      activeSubunitIds = newActive;
+      if (changed) renderSubunitGroups();
+    });
+  }
+
+  // ---- 활동 링크를 새 탭 대신 작은 팝업 창으로 열기 ----
+
+  const activityModalEls = {
+    overlay: document.getElementById('activity-modal'),
+    iframe: document.getElementById('activity-modal-iframe'),
+    closeBtn: document.getElementById('activity-modal-close'),
+  };
+
+  function openActivityModal(url) {
+    activityModalEls.iframe.src = url;
+    activityModalEls.overlay.style.display = 'flex';
+  }
+
+  function closeActivityModal() {
+    activityModalEls.overlay.style.display = 'none';
+    activityModalEls.iframe.src = 'about:blank'; // 닫으면 내용을 비워서(현재 페이지가 다시 불려오지 않게), 다음에 열 때 항상 새로 불러오게 함
+  }
+
+  activityModalEls.closeBtn.addEventListener('click', closeActivityModal);
+  activityModalEls.overlay.addEventListener('click', (e) => {
+    if (e.target === activityModalEls.overlay) closeActivityModal();
+  });
 
   // ---- 소단원 추가 자료 팝업(교사 전용) ----
 
@@ -361,6 +409,7 @@
       loadPendingEvalBadge();
     } else {
       loadMyScore();
+      startSubunitWatch();
     }
     loadSubunitResources().then(renderSubunitGroups);
   }

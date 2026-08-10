@@ -461,6 +461,47 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* 소단원 카드의 "활동" 링크를 새 탭 대신 작은 팝업 창으로 열 때 쓰는 모달 */
+.activity-modal-box {
+  position: relative;
+  max-width: 900px;
+  width: 92vw;
+  padding: 0;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.activity-modal-iframe {
+  display: block;
+  width: 100%;
+  height: 85vh;
+  border: none;
+}
+
+.activity-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-text);
+  color: #fff;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.activity-modal-close:hover {
+  filter: brightness(1.15);
+}
+
 /* 교과서 활동: 페이지 이미지 위, 원본 빈칸 자리에 겹쳐 놓는 답변 입력칸 */
 .activity-answer-box {
   position: absolute;

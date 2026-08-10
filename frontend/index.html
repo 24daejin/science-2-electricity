@@ -157,12 +157,23 @@
     const container = document.getElementById('subunit-groups');
     const isTeacher = currentUser && currentUser.role === 'teacher';
     container.innerHTML = SUBUNITS.map((s) => {
-      const extraLinks = subunitResources
-        .filter((r) => r.subunitId === s.id)
+      const resources = subunitResources.filter((r) => r.subunitId === s.id);
+      const activityLinks = resources
         .map((r) => `<a class="btn secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="text-decoration:none;">${escapeHtml(r.name)}</a>`)
         .join('');
       const addBtn = isTeacher
         ? `<button type="button" class="subunit-add-btn" data-add-resource="${s.id}" title="이 소단원에 자료 추가">+</button>`
+        : '';
+      // 등록된 자료(교과서 활동 등)가 있으면 "활동들" 토글 버튼을 형성평가/관련 내용 답하기보다 위에 두고,
+      // 눌러야 목록이 펼쳐지게 해서 활동이 늘어나도 카드가 어지러워지지 않게 합니다.
+      const activitiesSection = resources.length
+        ? `
+        <div class="subunit-group-links" style="margin-bottom:8px;">
+          <button type="button" class="btn secondary" data-toggle-activities="${s.id}">활동들 (${resources.length}) ▾</button>
+        </div>
+        <div class="subunit-group-links subunit-activities-list" id="activities-list-${s.id}" style="display:none;">
+          ${activityLinks}
+        </div>`
         : '';
       return `
       <div class="subunit-group" data-subunit-id="${s.id}">
@@ -173,16 +184,25 @@
           </div>
           ${addBtn}
         </div>
+        ${activitiesSection}
         <div class="subunit-group-links">
           <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
           <a class="btn secondary" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>
-          ${extraLinks}
         </div>
       </div>`;
     }).join('');
 
     container.querySelectorAll('[data-add-resource]').forEach((btn) => {
       btn.addEventListener('click', () => openResourceModal(btn.dataset.addResource));
+    });
+    container.querySelectorAll('[data-toggle-activities]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.toggleActivities;
+        const list = document.getElementById(`activities-list-${id}`);
+        const isOpen = list.style.display !== 'none';
+        list.style.display = isOpen ? 'none' : 'flex';
+        btn.textContent = btn.textContent.replace(isOpen ? '▴' : '▾', isOpen ? '▾' : '▴');
+      });
     });
 
     if (stopSessionWatch) stopSessionWatch();

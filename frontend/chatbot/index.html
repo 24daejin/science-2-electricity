@@ -116,7 +116,7 @@
       maxTurns = result.maxTurns || 5;
       els.loading.style.display = 'none';
       els.chat.style.display = 'block';
-      setTurnCounter(result.turnNumber);
+      setTurnCounter(result.questionNumber);
       addBubble('bot', result.message);
 
       initDropoutTracking('chatbot');
@@ -143,7 +143,7 @@
 
     try {
       const result = await callApi('sendChatbotMessage', { sessionId, concept, message });
-      setTurnCounter(result.turnNumber);
+      setTurnCounter(result.questionNumber);
       addBubble(result.isFinal ? 'system' : 'bot', result.message);
       if (result.isFinal) endConversation();
     } catch (err) {

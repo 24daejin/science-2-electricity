@@ -136,7 +136,7 @@ function Chatbot_start(payload, auth) {
   var firstQuestion = Claude_callMessages(
     systemPrompt,
     [{ role: 'user', content: '(대화 시작) 학생에게 "' + concept + '"를 스스로 설명해보라고 요청하는 첫 질문을 던져줘.' }],
-    300
+    600
   );
 
   Chatbot_appendLog_(sessionId, 1, '챗봇', firstQuestion, concept, auth);
@@ -145,6 +145,7 @@ function Chatbot_start(payload, auth) {
     sessionId: sessionId,
     concept: concept,
     turnNumber: 1,
+    questionNumber: 1, // 이게 몇 번째 "챗봇 질문"인지(학생 화면의 진행 카운터가 이 값을 씀 — maxTurns와 같은 단위)
     maxTurns: CHATBOT_MAX_TURNS,
     message: firstQuestion,
     isFinal: false,
@@ -176,14 +177,14 @@ function Chatbot_sendMessage(payload, auth) {
   messages.push({ role: 'user', content: studentMessage });
 
   if (reachedMaxTurns) {
-    var summary = Claude_callMessages(Chatbot_buildSummaryPrompt_(concept), messages, 500);
+    var summary = Claude_callMessages(Chatbot_buildSummaryPrompt_(concept), messages, 700);
     var summaryTurn = studentTurnNumber + 1;
     Chatbot_appendLog_(sessionId, summaryTurn, '시스템', summary, concept, auth);
 
     // 성취기준 기준 5점 루브릭 평가(학부모 공개용). 평가가 실패해도 대화 자체는 정상 종료되게 한다.
     try {
       var standard = Chatbot_findStandardForConcept_(concept);
-      var rubricText = Claude_callMessages(Chatbot_buildRubricPrompt_(concept, standard), messages, 400);
+      var rubricText = Claude_callMessages(Chatbot_buildRubricPrompt_(concept, standard), messages, 600);
       var rubric = Chatbot_parseRubric_(rubricText);
       ChatbotEval_save_(sessionId, concept, standard, rubric, auth);
     } catch (evalErr) {
@@ -194,13 +195,14 @@ function Chatbot_sendMessage(payload, auth) {
       sessionId: sessionId,
       concept: concept,
       turnNumber: summaryTurn,
+      questionNumber: CHATBOT_MAX_TURNS,
       maxTurns: CHATBOT_MAX_TURNS,
       message: summary,
       isFinal: true,
     };
   }
 
-  var nextQuestion = Claude_callMessages(Chatbot_buildSystemPrompt_(concept), messages, 300);
+  var nextQuestion = Claude_callMessages(Chatbot_buildSystemPrompt_(concept), messages, 600);
   var botTurnNumber = studentTurnNumber + 1;
   Chatbot_appendLog_(sessionId, botTurnNumber, '챗봇', nextQuestion, concept, auth);
 
@@ -208,6 +210,7 @@ function Chatbot_sendMessage(payload, auth) {
     sessionId: sessionId,
     concept: concept,
     turnNumber: botTurnNumber,
+    questionNumber: botTurnsSoFar + 1, // 이번 챗봇 질문이 몇 번째인지(학생 화면 진행 카운터용)
     maxTurns: CHATBOT_MAX_TURNS,
     message: nextQuestion,
     isFinal: false,

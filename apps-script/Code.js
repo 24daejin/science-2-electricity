@@ -24,13 +24,11 @@ function getRoutes_() {
     // 인증 (로그인 자체는 토큰이 없는 상태에서 호출되므로 auth: false)
     login: { fn: Auth_login, auth: false },
 
-    // 진단평가
-    getDiagnosticQuestions: { fn: Diagnostic_getQuestions, auth: true },
+    // 진단평가 (문항 조회는 프론트가 Firestore에서 직접 읽으므로 여기엔 없음 — fetchDiagnosticQuestionsFS)
     submitDiagnosticResponse: { fn: Diagnostic_submitResponse, auth: true },
     getDiagnosticAttemptCounts: { fn: Diagnostic_getAttemptCounts, auth: true },
 
-    // 형성평가 (6개 소단원 공용)
-    getFormativeQuestions: { fn: Formative_getQuestions, auth: true },
+    // 형성평가 (6개 소단원 공용, 문항 조회는 마찬가지로 Firestore에서 직접 읽음 — fetchFormativeQuestionsFS)
     submitFormativeResponse: { fn: Formative_submitResponse, auth: true },
     getFormativeAttemptCounts: { fn: Formative_getAttemptCounts, auth: true },
 

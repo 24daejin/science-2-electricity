@@ -1,39 +1,8 @@
-/** 형성평가: 6개 소단원 공용. 형성평가_문항 탭을 소단원ID로 필터링해서 제공합니다. */
+/** 형성평가: 6개 소단원 공용. 문항 조회는 프론트가 Firestore에서 직접 하고, 이 파일은 응답 저장/시도횟수만 담당합니다. */
 
 var FORMATIVE_RESPONSE_HEADERS = [
   '제출시각', '순번', '이름', '반', '번호', '소단원ID', '문항ID', '선택한 보기', '확신도', '정오답', '핵심개념', '시도번호',
 ];
-
-function Formative_getQuestions(payload) {
-  var subunitId = String(payload.subunitId || '').trim();
-  if (!subunitId) throw new Error('subunitId가 필요합니다.');
-
-  var rows = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_QUESTIONS);
-  if (!rows) {
-    throw new Error('형성평가_문항 시트가 아직 마스터 스프레드시트에 병합되지 않았습니다. 준비되는 대로 자동으로 반영됩니다.');
-  }
-
-  var filtered = rows.filter(function (r) { return String(r['소단원ID']).trim() === subunitId; });
-
-  return filtered.map(function (r) {
-    return {
-      questionId: r['문항ID'],
-      subunitId: r['소단원ID'],
-      subunitName: r['소단원명'],
-      coreConcept: r['핵심개념'],
-      standard: r['성취기준'],
-      question: r['문제'],
-      choices: [r['보기1'], r['보기2'], r['보기3'], r['보기4']],
-      answer: Number(r['정답(번호)']),
-      feedback: {
-        correct_confident: r['피드백_정답_확신'],
-        correct_unsure: r['피드백_정답_비확신'],
-        incorrect_confident: r['피드백_오답_확신'],
-        incorrect_unsure: r['피드백_오답_비확신'],
-      },
-    };
-  });
-}
 
 /** action=getFormativeAttemptCounts: 이 학생이 각 문항을 지금까지 몇 번 풀었는지 { 문항ID: 횟수 } 로 반환. */
 function Formative_getAttemptCounts(payload, auth) {

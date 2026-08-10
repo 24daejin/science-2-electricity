@@ -9,7 +9,7 @@ window.APP_CONFIG = {
   // 예: https://script.google.com/macros/s/AKfycb.../exec
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwn6CcqLstciuRL59GbmEeaNJ1-gZO1ibUAlJ1xWnqxBkYmvKU67NDRs_LJ6vL2QpJW/exec",
 
-  // Firebase 프로젝트 설정 (문항 조회·세션 상태 실시간 구독 등 "읽기"에 사용).
+  // Firebase 프로젝트 설정 (문항 조회·반별 활성 활동 실시간 구독 등 "읽기"에 사용).
   // Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 그대로 복사해 채우세요.
   // apiKey 등은 브라우저에 노출되는 게 정상입니다(비밀키 아님) — 실제 접근 제어는
   // Firestore 보안 규칙(docs/FIREBASE_SETUP.md)이 담당합니다.
@@ -21,7 +21,8 @@ window.APP_CONFIG = {
     messagingSenderId: "805811549552",
     appId: "1:805811549552:web:f63edc442703762c7fcbb5",
   },
-
-  // "관련 내용 답하기"(소크라테스식 챗봇) 최대 턴 수
-  CHATBOT_MAX_TURNS: 5,
 };
+
+// 참고: "관련 내용 답하기"(챗봇) 최대 턴 수는 여기서 바꿀 수 없습니다 — 실제 값은
+// apps-script/Chatbot.js의 CHATBOT_MAX_TURNS 상수가 정하고, 챗봇 시작 응답에 담겨 옵니다
+// (프론트는 그 값을 그대로 표시만 함). 턴 수를 바꾸려면 그 파일을 고치고 재배포하세요.

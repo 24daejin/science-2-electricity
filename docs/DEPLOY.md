@@ -3,7 +3,7 @@
 네 부분을 순서대로 설정합니다: **① Apps Script 백엔드 → ② GitHub Pages 프론트엔드 → ③ 프론트-백엔드 연결 → ④ Firestore(성능 개선, [FIREBASE_SETUP.md](FIREBASE_SETUP.md))**.
 
 > 인증은 Google OAuth(GIS)가 아니라 자체 로그인(반+번호+이름+반코드 / 교사 이름+비밀번호)입니다. Cloud Console 설정이 필요 없습니다. Cloud Console 접근이 나중에 가능해지면 [OAUTH_SETUP.md](OAUTH_SETUP.md)를 참고해 GIS로 전환할 수 있습니다.
-> 문항 조회와 반별 활성 활동은 Apps Script(느림) 대신 Firestore에서 직접 읽습니다 — ④번(선택이지만 강력 추천)을 마쳐야 형성평가가 빠르게 동작합니다.
+> 문항 조회와 반별 활성 활동은 Apps Script를 거치지 않고 Firestore에서 직접 읽습니다 — 프론트엔드에 Apps Script로 되돌아가는 대체 경로가 없으므로 **④번은 사실상 필수**입니다. ④를 마치지 않으면 진단평가/형성평가 화면이 문항을 아예 불러오지 못합니다.
 
 ## ① Apps Script 백엔드 배포
 
@@ -65,9 +65,9 @@ window.APP_CONFIG = {
 };
 ```
 
-## ④ Firestore 연동 (성능 개선, 강력 추천)
+## ④ Firestore 연동 (사실상 필수 — 문항 조회의 유일한 경로)
 
-문항 조회와 반별 활성 활동을 Apps Script(느림) 대신 Firestore(빠름)에서 직접 읽도록 하는 단계입니다. 자세한 절차는 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)를 그대로 따라가세요. 신용카드 등록이 필요한 유료 요금제는 필요 없습니다.
+문항 조회와 반별 활성 활동을 Apps Script(느림) 대신 Firestore(빠름)에서 직접 읽도록 하는 단계입니다. 성능 개선으로 시작됐지만, 지금은 `diagnostic/`·`formative/` 화면이 문항을 가져오는 유일한 경로라 이 단계 없이는 학생이 진단평가·형성평가를 아예 시작할 수 없습니다. 자세한 절차는 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)를 그대로 따라가세요. 신용카드 등록이 필요한 유료 요금제는 필요 없습니다.
 
 ## 배포 후 점검 체크리스트
 

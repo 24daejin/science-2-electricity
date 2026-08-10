@@ -279,7 +279,32 @@
       container.innerHTML = '';
       return;
     }
-    const { group } = found;
+    const { group, activity } = found;
+    const iconHtml = group.icon
+      ? `<img src="assets/images/subunit-${group.icon}.png" alt="" class="subunit-icon" />`
+      : '';
+
+    // 활동이 하나뿐인 그룹(진단평가)은 고를 게 없으니 드롭다운 대신 바로 누르는 버튼으로 보여줍니다.
+    // 드롭다운은 "여러 활동 중 이것만 활성화됨"을 보여줄 때만 의미가 있습니다(소단원처럼 2개 이상일 때).
+    if (group.activities.length === 1) {
+      container.innerHTML = `
+      <div class="subunit-group subunit-group-active" data-subunit-id="${group.id}">
+        <div class="subunit-group-head">
+          <div class="subunit-group-head-left">
+            ${iconHtml}
+            <strong>${escapeHtml(group.label)}</strong>
+          </div>
+        </div>
+        <div class="subunit-group-links">
+          <button type="button" class="btn" id="student-activity-btn">${escapeHtml(activity.label)}</button>
+        </div>
+      </div>`;
+      document.getElementById('student-activity-btn').addEventListener('click', () => {
+        if (activity.popup) openActivityModal(activity.url);
+        else window.location.href = activity.url;
+      });
+      return;
+    }
 
     const options = group.activities
       .map((a) => {
@@ -287,9 +312,6 @@
         return `<option value="${a.key}" ${isActive ? '' : 'disabled'}>${escapeHtml(a.label)}${isActive ? '' : ' (비활성)'}</option>`;
       })
       .join('');
-    const iconHtml = group.icon
-      ? `<img src="assets/images/subunit-${group.icon}.png" alt="" class="subunit-icon" />`
-      : '';
 
     container.innerHTML = `
     <div class="subunit-group subunit-group-active" data-subunit-id="${group.id}">

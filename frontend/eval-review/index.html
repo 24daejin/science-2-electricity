@@ -14,7 +14,7 @@
     <div class="badge"></div>
     <div>
       <h1>챗봇 평가 검수</h1>
-      <p class="muted">"관련 내용 답하기" 대화가 끝나면 AI가 5점 루브릭으로 자동 채점합니다. 표에서 빠르게 훑어보고, 필요한 건만 펼쳐서 대화 전문을 확인·수정한 뒤 승인해야 학부모 포털에 공개됩니다.</p>
+      <p class="muted">"관련 내용 답하기" 대화가 끝나면 AI가 5점 루브릭으로 자동 채점합니다. 표에서 빠르게 훑어보고, 필요한 건만 펼쳐서 대화 전문을 확인·수정한 뒤 승인해야 학부모에게 공개 가능해집니다.</p>
     </div>
   </div>
 
@@ -248,7 +248,7 @@
     // 지금 화면에 보이는(반 범위 필터링된) 것만 일괄 승인합니다 — 안 보이는 다른 반 것까지
     // 실수로 승인하지 않도록.
     if (!visiblePending.length) return;
-    if (!confirm(`지금 보이는 검수 대기 ${visiblePending.length}건을 AI 채점 그대로(수정 없이) 전부 승인할까요? 모두 즉시 학부모 포털에 공개됩니다.`)) return;
+    if (!confirm(`지금 보이는 검수 대기 ${visiblePending.length}건을 AI 채점 그대로(수정 없이) 전부 승인할까요? 모두 즉시 학부모에게 공개 가능해집니다.`)) return;
     els.approveAllBtn.disabled = true;
     els.approveAllBtn.textContent = '승인 처리 중...';
     const targets = [...visiblePending];

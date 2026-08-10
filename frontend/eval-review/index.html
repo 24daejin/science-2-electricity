@@ -20,6 +20,8 @@
 
   <div id="error-view" class="card error" style="display:none;"></div>
 
+  <div id="eval-scope-toggle"></div>
+
   <div class="card" id="summary-card" style="display:none;">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <p class="muted" id="count-text" style="margin:0;"></p>
@@ -52,6 +54,7 @@
   const user = requireTeacher();
   let pending = [];
   const expanded = new Set(); // 펼쳐서 대화 전문을 보고 있는 세션ID들
+  let showAllClassroomsForEval = false;
 
   const els = {
     error: document.getElementById('error-view'),
@@ -99,14 +102,24 @@
     }
   }
 
+  let visiblePending = []; // 지금 화면에 보이는(반 범위 필터링된) 목록 — "전체 일괄 승인"도 이 범위만 처리합니다.
+
   function render() {
-    const hasItems = pending.length > 0;
+    const toggleEl = document.getElementById('eval-scope-toggle');
+    const effectiveShowAll = renderScopeToggle(toggleEl, showAllClassroomsForEval, (next) => {
+      showAllClassroomsForEval = next;
+      render();
+    });
+    const mine = myClassrooms();
+    visiblePending = mine && !effectiveShowAll ? pending.filter((p) => mine.includes(String(p.classroom))) : pending;
+
+    const hasItems = visiblePending.length > 0;
     els.summaryCard.style.display = hasItems ? 'block' : 'none';
     els.empty.style.display = hasItems ? 'none' : 'block';
     els.tableCard.style.display = hasItems ? 'block' : 'none';
-    els.countText.textContent = `검수 대기 ${pending.length}건`;
+    els.countText.textContent = `검수 대기 ${visiblePending.length}건`;
 
-    els.tbody.innerHTML = pending
+    els.tbody.innerHTML = visiblePending
       .map((item) => {
         const isOpen = expanded.has(item.sessionId);
         const summaryRow = `
@@ -232,11 +245,13 @@
   }
 
   els.approveAllBtn.addEventListener('click', async () => {
-    if (!pending.length) return;
-    if (!confirm(`검수 대기 ${pending.length}건을 AI 채점 그대로(수정 없이) 전부 승인할까요? 모두 즉시 학부모 포털에 공개됩니다.`)) return;
+    // 지금 화면에 보이는(반 범위 필터링된) 것만 일괄 승인합니다 — 안 보이는 다른 반 것까지
+    // 실수로 승인하지 않도록.
+    if (!visiblePending.length) return;
+    if (!confirm(`지금 보이는 검수 대기 ${visiblePending.length}건을 AI 채점 그대로(수정 없이) 전부 승인할까요? 모두 즉시 학부모 포털에 공개됩니다.`)) return;
     els.approveAllBtn.disabled = true;
     els.approveAllBtn.textContent = '승인 처리 중...';
-    const targets = [...pending];
+    const targets = [...visiblePending];
     for (const item of targets) {
       try {
         await callApi('approveChatbotEval', { sessionId: item.sessionId, stars: item.stars, rationale: item.rationale });

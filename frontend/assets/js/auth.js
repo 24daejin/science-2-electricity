@@ -32,6 +32,42 @@ function getCurrentUser() {
   return raw ? JSON.parse(raw) : null;
 }
 
+/**
+ * 로그인한 교사의 담당 반 목록(문자열 배열)을 반환합니다. 담당 반 제한이 없는 계정(또는
+ * 교사가 아닌 경우)이면 null입니다 — 화면 쪽에서 null이면 "전체 반"으로 취급하면 됩니다.
+ * (TEACHER_ACCOUNTS 스크립트 속성에 classrooms를 넣은 교사만 값이 채워집니다.)
+ */
+function myClassrooms() {
+  const user = getCurrentUser();
+  if (!user || user.role !== 'teacher') return null;
+  return Array.isArray(user.classrooms) && user.classrooms.length ? user.classrooms.map(String) : null;
+}
+
+/**
+ * 여러 교사 화면(반별 활동 지정/대시보드/명단/평가 검수)이 공통으로 쓰는 "내 담당 반만" ↔
+ * "전체 반 보기" 토글 버튼을 el 안에 그립니다. 담당 반 제한이 없는 교사(classrooms 없음)는
+ * 볼 것도 없으니 버튼을 그리지 않고 그냥 true(전체로 취급)를 돌려줍니다.
+ * @param {HTMLElement} el 토글을 그릴 빈 컨테이너
+ * @param {boolean} showAll 지금 "전체 보기" 상태인지
+ * @param {(next: boolean) => void} onToggle 버튼을 눌렀을 때 다음 상태를 넘겨줌(호출부가 그 상태를 저장하고 다시 그려야 함)
+ * @returns {boolean} 실제로 전체 반으로 취급해야 하는지(담당 반 제한이 아예 없으면 항상 true)
+ */
+function renderScopeToggle(el, showAll, onToggle) {
+  const mine = myClassrooms();
+  if (!mine) {
+    el.innerHTML = '';
+    return true;
+  }
+  el.innerHTML = `
+    <div class="scope-toggle-row">
+      <button type="button" class="btn secondary" id="scope-toggle-btn">
+        ${showAll ? '내 담당 반만 보기' : `전체 반 보기 (담당: ${mine.join(', ')}반)`}
+      </button>
+    </div>`;
+  document.getElementById('scope-toggle-btn').addEventListener('click', () => onToggle(!showAll));
+  return showAll;
+}
+
 /** 현재 페이지 깊이에 맞는 로그인 화면(frontend/index.html) 경로를 계산합니다. */
 function homeUrl() {
   const path = window.location.pathname;

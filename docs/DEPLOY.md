@@ -21,7 +21,7 @@ Apps Script 편집기 좌측 톱니바퀴 ⚙ **프로젝트 설정 → 스크�
 |---|---|---|
 | `SPREADSHEET_ID` | `1zCWl9O6to8HdAXimDLx6BiMtchSOm3_M5cQ7yiK65l0` | 현재 마스터 시트 ID (형성평가/명단 탭이 병합돼도 ID는 그대로 유지됩니다) |
 | `CLAUDE_API_KEY` | Claude API 키 | [console.anthropic.com](https://console.anthropic.com)에서 발급. **여기에만** 저장 — 코드/git에는 절대 넣지 않음 |
-| `TEACHER_ACCOUNTS` | JSON 배열 문자열, 예: `[{"name":"김다은","password":"바꿔주세요1"},{"name":"박OO","password":"바꿔주세요2"}]` | 두 담당 교사의 로그인 이름/비밀번호. 비밀번호는 추측하기 어려운 값으로 직접 정해서 채우세요 |
+| `TEACHER_ACCOUNTS` | JSON 배열 문자열, 예: `[{"name":"김다은","password":"바꿔주세요1","classrooms":["1","2","3","4","5","6","7","8"]},{"name":"박OO","password":"바꿔주세요2","classrooms":["9","10"]}]` | 두 담당 교사의 로그인 이름/비밀번호. 비밀번호는 추측하기 어려운 값으로 직접 정해서 채우세요. `classrooms`(선택)로 담당 반을 나누면 교사 화면들이 기본으로 그 반만 보여줍니다(강제 차단은 아니고, "전체 보기"로 언제든 다른 반도 볼 수 있음). 안 넣으면 예전처럼 모든 반이 보입니다 |
 
 학생 로그인에 쓰이는 **반코드**는 스크립트 속성이 아니라 시트(반코드 탭)에서 관리합니다 — 배포 후 [roster/index.html](../frontend/roster/index.html)에서 반별로 설정하세요.
 

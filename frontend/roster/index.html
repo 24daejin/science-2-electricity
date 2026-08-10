@@ -23,6 +23,7 @@
   <div class="card">
     <h2>반별 로그인 코드</h2>
     <p class="muted">학생은 반+번호+이름+이 코드로 로그인합니다. 코드를 바꾸면 즉시 반영되니, 수업 시작 시 칠판에 적어 안내하세요.</p>
+    <div id="roster-scope-toggle"></div>
     <div id="class-code-list"></div>
     <div class="form-grid" style="margin-top:12px;">
       <input id="cc-classroom" placeholder="반 (예: 3)" />
@@ -94,6 +95,19 @@
   let classCodes = [];
   let editingSeq = null;
   let subunitResources = [];
+  let showAllClassroomsForRoster = false;
+
+  /** 반코드 목록/전체 명단 표시에 공통으로 쓰는 "내 담당 반만" 필터. 반 제한이 없으면 null(전체). */
+  function applyRosterScope() {
+    const toggleEl = document.getElementById('roster-scope-toggle');
+    const effectiveShowAll = renderScopeToggle(toggleEl, showAllClassroomsForRoster, (next) => {
+      showAllClassroomsForRoster = next;
+      renderRoster();
+      renderClassCodes();
+    });
+    const mine = myClassrooms();
+    return mine && !effectiveShowAll ? mine : null;
+  }
 
   const SUBUNIT_NAMES = {
     '1': '마찰전기와 정전기 유도',
@@ -157,8 +171,10 @@
   }
 
   function renderRoster() {
-    els.count.textContent = roster.length;
-    els.tbody.innerHTML = roster
+    const scope = applyRosterScope();
+    const visible = scope ? roster.filter((s) => scope.includes(String(s.classroom))) : roster;
+    els.count.textContent = visible.length;
+    els.tbody.innerHTML = visible
       .map(
         (s) => `
       <tr>
@@ -195,11 +211,18 @@
   }
 
   function renderClassCodes() {
+    const scope = applyRosterScope();
+    const visible = scope ? classCodes.filter((c) => scope.includes(String(c.classroom))) : classCodes;
+
     if (!classCodes.length) {
       els.classCodeList.innerHTML = '<p class="muted">아직 설정된 반코드가 없습니다. 아래에서 추가하세요.</p>';
       return;
     }
-    els.classCodeList.innerHTML = classCodes
+    if (!visible.length) {
+      els.classCodeList.innerHTML = '<p class="muted">내 담당 반의 반코드가 아직 없습니다. "전체 반 보기"로 다른 반 코드를 확인할 수 있어요.</p>';
+      return;
+    }
+    els.classCodeList.innerHTML = visible
       .map((c) => `<div class="status-banner">${c.classroom}반 → <strong>${c.code}</strong></div>`)
       .join('');
   }

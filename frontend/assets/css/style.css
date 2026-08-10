@@ -439,6 +439,27 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* 교사의 "반별 오늘 활동 지정" 카드: 반 카드를 2열로 나눠 배치(반이 많아도 세로로 한없이
+   길어지지 않도록). 좁은 화면(모바일)에서는 1열로 자연스럽게 접힙니다. */
+.classroom-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .classroom-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* 교사 화면 공통: "내 담당 반만" ↔ "전체 반 보기" 전환 버튼 */
+.scope-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
 /* 학생 홈 화면의 "오늘의 활동" 드롭다운 + 교사의 반별 활동 지정 드롭다운 공용 스타일 */
 .activity-select {
   width: 100%;

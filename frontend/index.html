@@ -63,7 +63,8 @@
     <div class="card" id="class-subunit-card" style="display:none;">
       <h2>반별 오늘 활동 지정</h2>
       <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 그룹(진단평가 / 소단원 1~6)을 고른 뒤, 그 안의 활동(형성평가·관련 내용 답하기·교과서 활동)을 체크박스로 켜면 그 반 학생 홈 화면에서 켜진 활동만 누를 수 있게 나타나요. 여러 개를 동시에 켜둘 수 있어요 — 예를 들어 형성평가를 마친 학생이 바로 이어서 "관련 내용 답하기"도 하도록요.</p>
-      <div id="class-subunit-list"></div>
+      <div id="class-subunit-scope-toggle"></div>
+      <div id="class-subunit-list" class="classroom-grid"></div>
     </div>
 
     <div class="card" id="subunit-groups-card">
@@ -443,6 +444,7 @@
   let classroomList = [];
   let classActiveActivityByClassroom = {}; // { 반: [활동키, ...] }
   let teacherSelectedGroupByClassroom = {}; // { 반: 그룹id } — 체크박스로 보여줄 그룹(UI 전용 상태)
+  let showAllClassroomsForActivity = false; // "전체 반 보기" 토글 상태(담당 반 제한이 있는 교사만 의미 있음)
 
   async function loadClassSubunitControl() {
     document.getElementById('class-subunit-card').style.display = 'block';
@@ -469,7 +471,15 @@
     const container = document.getElementById('class-subunit-list');
     const groups = activityGroupsFor(subunitResources);
 
-    container.innerHTML = classroomList
+    const toggleEl = document.getElementById('class-subunit-scope-toggle');
+    const effectiveShowAll = renderScopeToggle(toggleEl, showAllClassroomsForActivity, (next) => {
+      showAllClassroomsForActivity = next;
+      renderClassSubunitList();
+    });
+    const mine = myClassrooms();
+    const visibleClassrooms = mine && !effectiveShowAll ? classroomList.filter((c) => mine.includes(c)) : classroomList;
+
+    container.innerHTML = visibleClassrooms
       .map((classroom) => {
         const activeKeys = classActiveActivityByClassroom[classroom] || [];
 

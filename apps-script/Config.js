@@ -11,6 +11,12 @@
  *   CLAUDE_API_KEY               - Claude API 키
  *   TEACHER_ACCOUNTS             - 교사 로그인 계정 JSON 배열 문자열.
  *                                  예: [{"name":"김다은","password":"바꿔주세요1"},{"name":"박OO","password":"바꿔주세요2"}]
+ *                                  담당 반을 나누고 싶으면 classrooms 배열을 추가하세요(선택):
+ *                                  [{"name":"김다은","password":"...","classrooms":["1","2","3","4","5","6","7","8"]},
+ *                                   {"name":"박OO","password":"...","classrooms":["9","10"]}]
+ *                                  classrooms를 안 넣은 계정은 예전처럼 모든 반을 담당하는 것으로 취급됩니다
+ *                                  (화면에 기본으로 자기 담당 반만 보이고, "전체 보기"로 언제든 다른 반도 볼 수 있음 —
+ *                                  강제 차단이 아니라 화면 정리용입니다).
  *   FIREBASE_SERVICE_ACCOUNT_JSON - Firestore 동기화(Sync.js)에 사용. Firebase 콘솔 >
  *                                  프로젝트 설정 > 서비스 계정 > "새 비공개 키 생성"으로 받은
  *                                  JSON 파일의 내용을 그대로 붙여넣습니다. (docs/FIREBASE_SETUP.md 참고)

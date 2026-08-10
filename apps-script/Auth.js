@@ -171,6 +171,12 @@ function Auth_loginTeacher_(payload) {
     throw new Error('이름 또는 비밀번호가 올바르지 않습니다.');
   }
 
-  var user = { role: 'teacher', name: name };
+  // classrooms를 지정 안 한 계정은 담당 반 제한 없음(null) — 화면에서 모든 반이 기본으로 보입니다.
+  var classrooms =
+    Array.isArray(match.classrooms) && match.classrooms.length
+      ? match.classrooms.map(function (c) { return String(c).trim(); })
+      : null;
+
+  var user = { role: 'teacher', name: name, classrooms: classrooms };
   return { authToken: issueAuthToken_(user), user: user };
 }

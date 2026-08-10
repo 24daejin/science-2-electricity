@@ -25,6 +25,7 @@
       <h2 style="margin:0;">반 선택</h2>
       <button class="btn secondary" id="overall-btn">전체 학급 한눈에 보기</button>
     </div>
+    <div id="class-scope-toggle"></div>
     <div class="subunit-grid" id="class-grid" style="margin-top:14px;"></div>
   </div>
 
@@ -110,6 +111,7 @@
   let currentClassroom = null;
   let currentStudents = [];
   let currentDetail = null;
+  let showAllClassroomsForDashboard = false;
 
   const els = {
     error: document.getElementById('error-view'),
@@ -243,16 +245,29 @@
   async function loadClasses() {
     try {
       roster = await callApi('listRoster', {});
-      const classes = [...new Set(roster.map((s) => String(s.classroom)))].sort((a, b) => Number(a) - Number(b));
-      els.classGrid.innerHTML = classes
-        .map((c) => `<button class="choice" type="button" data-classroom="${c}">${c}반</button>`)
-        .join('');
-      els.classGrid.querySelectorAll('[data-classroom]').forEach((btn) => {
-        btn.addEventListener('click', () => loadClassSummary(btn.dataset.classroom));
-      });
+      renderClassGrid();
     } catch (err) {
       showError('명단을 불러오지 못했습니다: ' + err.message);
     }
+  }
+
+  function renderClassGrid() {
+    const toggleEl = document.getElementById('class-scope-toggle');
+    const effectiveShowAll = renderScopeToggle(toggleEl, showAllClassroomsForDashboard, (next) => {
+      showAllClassroomsForDashboard = next;
+      renderClassGrid();
+    });
+    const mine = myClassrooms();
+
+    const classes = [...new Set(roster.map((s) => String(s.classroom)))].sort((a, b) => Number(a) - Number(b));
+    const visibleClasses = mine && !effectiveShowAll ? classes.filter((c) => mine.includes(c)) : classes;
+
+    els.classGrid.innerHTML = visibleClasses
+      .map((c) => `<button class="choice" type="button" data-classroom="${c}">${c}반</button>`)
+      .join('');
+    els.classGrid.querySelectorAll('[data-classroom]').forEach((btn) => {
+      btn.addEventListener('click', () => loadClassSummary(btn.dataset.classroom));
+    });
   }
 
   async function loadClassSummary(classroom) {

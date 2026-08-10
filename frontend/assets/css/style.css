@@ -206,6 +206,14 @@ p.muted,
   gap: 10px;
 }
 
+/* 말풍선(.menu-item .muted)이 카드 밖으로 튀어나와도 바로 아래 카드에 가려지지 않도록,
+   교사 메뉴 카드 자체를 형제 카드들보다 위 스택에 놓습니다. (.menu-item:hover의 transform이
+   말풍선의 z-index를 그 안에 가둬버리므로, 카드 단위로 스택을 올려줘야 함) */
+#teacher-card {
+  position: relative;
+  z-index: 3;
+}
+
 .menu-item {
   position: relative;
   display: inline-flex;

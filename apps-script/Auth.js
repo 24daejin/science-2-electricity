@@ -151,7 +151,7 @@ function Auth_loginParent_(payload) {
 
   var expectedCode = String(student['학부모코드'] || '').trim();
   if (!expectedCode || expectedCode !== code) {
-    throw new Error('학부모 코드가 올바르지 않습니다. 담임 선생님께 문의하세요.');
+    throw new Error('학부모 코드가 올바르지 않습니다. 담당 선생님께 문의하세요.');
   }
 
   var user = {

@@ -7,9 +7,8 @@ var SHEET_NAMES = {
   ROSTER: '학생명단',
   CLASS_CODES: '반코드',
   DIAGNOSTIC_QUESTIONS: '진단평가_문항',
-  FORMATIVE_QUESTIONS: '형성평가_문항',
+  FORMATIVE_QUESTIONS: '형성평가_문항', // 문항 자체는 안 쓰고, 챗봇 개념→성취기준 매핑용 참조로만 씀(형성평가는 종이 학습지로 진행)
   DIAGNOSTIC_RESPONSES: '진단평가_응답',
-  FORMATIVE_RESPONSES: '형성평가_응답',
   CHATBOT_LOG: '챗봇_로그',
   DROPOUT_LOG: '이탈_로그',
   SCORE_LOG: '점수_로그',
@@ -84,7 +83,7 @@ function SheetUtils_invalidateCache_(sheetName) {
 
 /**
  * 시트가 없으면 헤더와 함께 새로 만들고, 있으면 그대로 반환합니다.
- * (진단평가_응답/형성평가_응답/챗봇_로그/이탈_로그/반_활성활동처럼 Apps Script가 자동 관리하는 탭에 사용)
+ * (진단평가_응답/챗봇_로그/이탈_로그/반_활성활동처럼 Apps Script가 자동 관리하는 탭에 사용)
  */
 function SheetUtils_ensureSheet(sheetName, headers) {
   var ss = getSpreadsheet_();

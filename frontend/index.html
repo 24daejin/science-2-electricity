@@ -20,7 +20,6 @@
     <div class="brand-actions" id="brand-actions" style="display:none;">
       <p class="muted" id="welcome-text"></p>
       <div id="score-view" style="display:none;">
-        <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
         <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
       </div>
       <a class="btn secondary" id="my-dashboard-link" href="my-dashboard/index.html" style="display:none; text-decoration:none;">내 대시보드 보기</a>
@@ -90,14 +89,14 @@
 
     <div class="card" id="class-subunit-card" style="display:none;">
       <h2>반별 오늘 활동 지정</h2>
-      <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 그룹(진단평가 / 소단원 1~6)을 고른 뒤, 그 안의 활동(형성평가·관련 내용 답하기·교과서 활동)을 체크박스로 켜면 그 반 학생 홈 화면에서 켜진 활동만 누를 수 있게 나타나요. 여러 개를 동시에 켜둘 수 있어요 — 예를 들어 형성평가를 마친 학생이 바로 이어서 "관련 내용 답하기"도 하도록요.</p>
+      <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 그룹(진단평가 / 소단원 1~6)을 고른 뒤, 그 안의 활동(관련 내용 답하기·교과서 활동)을 체크박스로 켜면 그 반 학생 홈 화면에서 켜진 활동만 누를 수 있게 나타나요. 여러 개를 동시에 켜둘 수 있어요.</p>
       <div id="class-subunit-scope-toggle"></div>
       <div id="class-subunit-list" class="classroom-grid"></div>
     </div>
 
     <div class="card" id="subunit-groups-card">
       <h2 id="subunit-groups-title">소단원별 학습</h2>
-      <p class="muted" id="subunit-groups-desc">소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.</p>
+      <p class="muted" id="subunit-groups-desc">소단원마다 "관련 내용 답하기"(개념 점검 활동)를 진행하세요.</p>
       <div id="subunit-groups"></div>
     </div>
   </div>
@@ -147,15 +146,15 @@
   let subunitResources = [];
   let currentUser = null;
   let resourceModalSubunitId = null;
-  let activeActivityKeys = []; // 학생 화면: 우리 반이 지금 할 수 있는 활동들(형성평가 끝낸 학생이 바로 "관련 내용 답하기"로 넘어가는 식으로 동시에 여러 개 켜질 수 있음)
+  let activeActivityKeys = []; // 학생 화면: 우리 반이 지금 할 수 있는 활동들(동시에 여러 개 켜질 수 있음)
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   /**
-   * "진단평가" + 6개 소단원을 하나의 목록으로 만듭니다. 각 그룹은 활동(형성평가/관련 내용
-   * 답하기/등록된 교과서 활동)을 갖고, 각 활동은 고유한 활동키를 가집니다 — 교사가 반마다
+   * "진단평가" + 6개 소단원을 하나의 목록으로 만듭니다. 각 그룹은 활동(관련 내용 답하기/등록된
+   * 교과서 활동)을 갖고, 각 활동은 고유한 활동키를 가집니다 — 교사가 반마다
    * 이 활동키 하나만 지정하면 학생 화면에 그 활동만 클릭 가능하게 나타납니다.
    */
   function activityGroupsFor(resources) {
@@ -168,16 +167,14 @@
       },
     ];
     SUBUNITS.forEach((s) => {
-      // 형성평가와 "관련 내용 답하기"는 배운 내용을 마지막에 점검하는 활동이라 목록 맨 뒤에 둡니다
-      // (교과서 활동/자료를 먼저 하고 나서 형성평가 → 관련 내용 답하기 순으로 이어지도록).
+      // "관련 내용 답하기"는 배운 내용을 마지막에 점검하는 활동이라 목록 맨 뒤에 둡니다
+      // (교과서 활동/자료를 먼저 하고 나서 관련 내용 답하기로 이어지도록). 형성평가는 종이
+      // 학습지로 진행하므로 이 앱에서는 다루지 않습니다.
       const activities = [];
       resources
         .filter((r) => r.subunitId === s.id)
         .forEach((r) => activities.push({ key: `resource-${r.id}`, label: r.name, url: r.url, popup: true }));
-      activities.push(
-        { key: `formative-${s.id}`, label: '형성평가', url: `formative/index.html?subunit=${s.id}`, popup: false },
-        { key: `chatbot-${s.id}`, label: '관련 내용 답하기', url: `chatbot/index.html?concept=${encodeURIComponent(s.name)}`, popup: false }
-      );
+      activities.push({ key: `chatbot-${s.id}`, label: '관련 내용 답하기', url: `chatbot/index.html?concept=${encodeURIComponent(s.name)}`, popup: false });
       groups.push({ id: s.id, label: `${s.id}. ${s.name}`, icon: s.id, activities });
     });
     return groups;
@@ -213,7 +210,7 @@
     // (진단평가는 별도 카드로 이미 항상 노출됨). 반별로 어떤 활동을 지정할지는 위
     // "반별 오늘 활동 지정" 카드에서 따로 합니다.
     document.getElementById('subunit-groups-title').textContent = '소단원별 학습';
-    document.getElementById('subunit-groups-desc').textContent = '소단원마다 형성평가와 "관련 내용 답하기"(개념 점검 활동)를 함께 진행하세요.';
+    document.getElementById('subunit-groups-desc').textContent = '소단원마다 "관련 내용 답하기"(개념 점검 활동)를 진행하세요.';
 
     container.innerHTML = SUBUNITS.map((s) => {
       const resources = subunitResources.filter((r) => r.subunitId === s.id);
@@ -241,8 +238,7 @@
         </div>
         ${activitiesSection}
         <div class="subunit-group-links">
-          <a class="btn" href="formative/index.html?subunit=${s.id}" style="text-decoration:none;">형성평가</a>
-          <a class="btn secondary" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>
+          <a class="btn" href="chatbot/index.html?concept=${encodeURIComponent(s.name)}" style="text-decoration:none;">관련 내용 답하기</a>
         </div>
       </div>`;
     }).join('');
@@ -266,8 +262,7 @@
 
   /**
    * 학생 화면: 선생님이 지정한 활동들이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
-   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동(하나 또는 여러 개 —
-   * 예: 형성평가를 마친 학생이 이어서 "관련 내용 답하기"도 할 수 있게 둘 다 켜둔 경우)만
+   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동(하나 또는 여러 개)만
    * 실제로 눌리는 버튼이 되고, 나머지는 "비활성"이라는 말 없이 그냥 누를 수 없는 회색 줄로
    * 나열됩니다.
    */
@@ -449,8 +444,7 @@
 
   // ---- 반별 오늘 활동 지정(교사 전용) ----
   // 반마다 "지금 다루는 그룹(진단평가 또는 소단원)"을 하나 고르고, 그 안의 활동들을 체크박스로
-  // 여러 개 동시에 켤 수 있습니다 — 형성평가를 마친 학생이 곧바로 "관련 내용 답하기"로 넘어갈
-  // 수 있도록 두 개를 같이 켜두는 식입니다.
+  // 여러 개 동시에 켤 수 있습니다.
 
   let stopClassSubunitWatch = null;
   let classroomList = [];
@@ -605,7 +599,6 @@
   async function loadMyScore() {
     try {
       const score = await callApi('getMyScore', {});
-      document.getElementById('score-quiz').textContent = score.quizScore;
       document.getElementById('score-activity').textContent = score.activityScore;
       document.getElementById('score-view').style.display = 'flex';
     } catch (err) {

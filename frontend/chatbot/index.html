@@ -47,9 +47,6 @@
   const user = requireLogin();
   const params = new URLSearchParams(window.location.search);
   const concept = params.get('concept');
-  const cameFrom = params.get('from'); // 'formative' 등
-  const fromSubunit = params.get('subunit');
-  const fromQuestion = params.get('question');
 
   const els = {
     error: document.getElementById('error-view'),
@@ -126,13 +123,6 @@
       addBubble('bot', result.message);
 
       initDropoutTracking('chatbot');
-
-      if (cameFrom === 'formative') {
-        addBubble(
-          'system',
-          `형성평가 ${fromSubunit || ''}소단원 ${fromQuestion || ''} 문항에서 이 개념을 다시 짚어보러 왔어요. 이해한 만큼 스스로 설명해보세요!`
-        );
-      }
     } catch (err) {
       showError('챗봇을 시작하지 못했습니다: ' + err.message);
     }

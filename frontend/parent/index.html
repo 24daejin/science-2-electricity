@@ -34,7 +34,6 @@
     <div class="card">
       <p class="muted" id="student-title"></p>
       <div>
-        <span class="tag">문제풀이 점수 <strong id="score-quiz">0</strong>점</span>
         <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
       </div>
       <button class="btn secondary" id="logout-btn" style="margin-top:14px;">로그아웃</button>
@@ -49,16 +48,6 @@
     <div class="card">
       <h2>"관련 내용 답하기" 대화 전문</h2>
       <div id="chatbot-sessions"></div>
-    </div>
-
-    <div class="card">
-      <h2>형성평가 응답 이력</h2>
-      <div style="overflow-x:auto;">
-        <table class="roster-table" id="form-table">
-          <thead><tr><th>시각</th><th>소단원</th><th>문항ID</th><th>정오답</th><th>시도</th></tr></thead>
-          <tbody id="form-tbody"></tbody>
-        </table>
-      </div>
     </div>
 
     <div class="card">
@@ -79,26 +68,15 @@
 <script src="../assets/js/api.js"></script>
 <script src="../assets/js/auth.js"></script>
 <script>
-  const SUBUNIT_NAMES = {
-    '1': '마찰전기와 정전기 유도',
-    '2': '전류, 전압, 저항 사이의 관계',
-    '3': '저항의 연결',
-    '4': '전기 에너지의 전환과 소비 전력',
-    '5': '전류에 의한 자기장',
-    '6': '전기와 자기가 만드는 힘',
-  };
-
   const els = {
     loginView: document.getElementById('login-view'),
     view: document.getElementById('view'),
     error: document.getElementById('error-view'),
     loginStatus: document.getElementById('login-status'),
     studentTitle: document.getElementById('student-title'),
-    scoreQuiz: document.getElementById('score-quiz'),
     scoreActivity: document.getElementById('score-activity'),
     evaluations: document.getElementById('evaluations'),
     chatbotSessions: document.getElementById('chatbot-sessions'),
-    formTbody: document.getElementById('form-tbody'),
     diagTbody: document.getElementById('diag-tbody'),
   };
 
@@ -132,7 +110,6 @@
   function renderView(result) {
     const st = result.student;
     els.studentTitle.textContent = `${st.classroom}반 ${st.number}번 ${st.name} 학생`;
-    els.scoreQuiz.textContent = result.quizScore;
     els.scoreActivity.textContent = result.activityScore;
 
     if (!result.chatbotEvaluations.length) {
@@ -170,15 +147,6 @@
         )
         .join('');
     }
-
-    els.formTbody.innerHTML = result.formativeResponses
-      .map(
-        (r) => `<tr>
-          <td>${fmtTime(r['제출시각'])}</td><td>${SUBUNIT_NAMES[String(r['소단원ID'])] || r['소단원ID']}</td>
-          <td>${r['문항ID']}</td><td>${r['정오답']}</td><td>${r['시도번호'] || ''}</td>
-        </tr>`
-      )
-      .join('') || '<tr><td colspan="5" class="muted">응답 기록이 없습니다.</td></tr>';
 
     els.diagTbody.innerHTML = result.diagnosticResponses
       .map(

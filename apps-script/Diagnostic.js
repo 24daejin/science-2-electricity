@@ -42,7 +42,7 @@ function Diagnostic_submitResponse(payload, auth) {
     시도번호: attemptNumber,
   });
 
-  // 진단평가는 배우기 전 선수학습 확인용이라 점수를 주지 않습니다(형성평가만 점수 대상).
+  // 진단평가는 배우기 전 선수학습 확인용이라 점수를 주지 않습니다(점수는 교과서 활동만 대상).
 
   return { saved: true, attemptNumber: attemptNumber };
 }

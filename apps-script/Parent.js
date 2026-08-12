@@ -13,9 +13,6 @@ function Parent_getView(payload, auth) {
   var diag = (SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_RESPONSES) || []).filter(function (r) {
     return String(r['순번']) === seq;
   });
-  var form = (SheetUtils_getRows(SHEET_NAMES.FORMATIVE_RESPONSES) || []).filter(function (r) {
-    return String(r['순번']) === seq;
-  });
   var chatRows = (SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG) || []).filter(function (r) {
     return String(r['순번']) === seq;
   });
@@ -57,14 +54,11 @@ function Parent_getView(payload, auth) {
       };
     });
 
-  var sumBy = function (type) {
-    return scoreRows
-      .filter(function (r) { return r['유형'] === type; })
-      .reduce(function (sum, r) { return sum + Number(r['점수'] || 0); }, 0);
-  };
+  var activityScore = scoreRows
+    .filter(function (r) { return r['유형'] === '교과서활동'; })
+    .reduce(function (sum, r) { return sum + Number(r['점수'] || 0); }, 0);
 
   diag.sort(function (a, b) { return new Date(a['제출시각']) - new Date(b['제출시각']); });
-  form.sort(function (a, b) { return new Date(a['제출시각']) - new Date(b['제출시각']); });
 
   return {
     student: {
@@ -72,10 +66,8 @@ function Parent_getView(payload, auth) {
       classroom: auth.classroom,
       number: auth.number,
     },
-    quizScore: sumBy('문제풀이'),
-    activityScore: sumBy('교과서활동'),
+    activityScore: activityScore,
     diagnosticResponses: diag,
-    formativeResponses: form,
     chatbotSessions: sessions,
     chatbotEvaluations: evaluations,
   };

@@ -35,37 +35,9 @@ function Sync_diagnosticQuestions() {
   Firestore_pruneCollection('diagnosticQuestions', ids);
 }
 
-function Sync_formativeQuestions() {
-  var rows = SheetUtils_getRows(SHEET_NAMES.FORMATIVE_QUESTIONS);
-  if (!rows) return;
-  var ids = [];
-  rows.forEach(function (r) {
-    var id = String(r['문항ID'] || '').trim();
-    if (!id) return;
-    ids.push(id);
-    Firestore_setDocument('formativeQuestions', id, {
-      subunitId: String(r['소단원ID'] || '').trim(),
-      subunitName: r['소단원명'] || '',
-      coreConcept: r['핵심개념'] || '',
-      standard: r['성취기준'] || '',
-      question: r['문제'] || '',
-      choices: [r['보기1'], r['보기2'], r['보기3'], r['보기4']],
-      answer: Number(r['정답(번호)']),
-      feedback: {
-        correct_confident: r['피드백_정답_확신'] || '',
-        correct_unsure: r['피드백_정답_비확신'] || '',
-        incorrect_confident: r['피드백_오답_확신'] || '',
-        incorrect_unsure: r['피드백_오답_비확신'] || '',
-      },
-    });
-  });
-  Firestore_pruneCollection('formativeQuestions', ids);
-}
-
 /** 전체 동기화. 수동 메뉴("지금 동기화") 또는 최초 설정(Sync_setup)에서 호출됩니다. */
 function Sync_all() {
   Sync_diagnosticQuestions();
-  Sync_formativeQuestions();
 }
 
 /**
@@ -102,5 +74,4 @@ function Sync_onEditTrigger(e) {
   if (!e || !e.range) return;
   var sheetName = e.range.getSheet().getName();
   if (sheetName === SHEET_NAMES.DIAGNOSTIC_QUESTIONS) Sync_diagnosticQuestions();
-  else if (sheetName === SHEET_NAMES.FORMATIVE_QUESTIONS) Sync_formativeQuestions();
 }

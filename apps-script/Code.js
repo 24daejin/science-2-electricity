@@ -28,10 +28,6 @@ function getRoutes_() {
     submitDiagnosticResponse: { fn: Diagnostic_submitResponse, auth: true },
     getDiagnosticAttemptCounts: { fn: Diagnostic_getAttemptCounts, auth: true },
 
-    // 형성평가 (6개 소단원 공용, 문항 조회는 마찬가지로 Firestore에서 직접 읽음 — fetchFormativeQuestionsFS)
-    submitFormativeResponse: { fn: Formative_submitResponse, auth: true },
-    getFormativeAttemptCounts: { fn: Formative_getAttemptCounts, auth: true },
-
     // 점수 (학생: 본인 점수만 / 교사: 반 전체)
     getMyScore: { fn: Score_getMine, auth: true },
     getClassScores: { fn: Score_getClassScores, auth: true },
@@ -55,9 +51,7 @@ function getRoutes_() {
     // 이탈(탭 전환) 로그
     logDropout: { fn: DropoutLog_record, auth: true },
 
-    // 반별로 "오늘 학생이 할 수 있는 활동들"을 지정(홈 화면 노출/버튼 활성화용). 형성평가는
-    // 더 이상 교사가 문항 하나씩 진행 제어하지 않고, 이 활동키가 열리면 학생이 소단원 전체
-    // 문항을 자기 속도로 풉니다.
+    // 반별로 "오늘 학생이 할 수 있는 활동들"을 지정(홈 화면 노출/버튼 활성화용)
     setClassActiveActivity: { fn: ActiveActivity_set, auth: true },
 
     // 반 공통 로그인코드 관리 (교사 전용, 핸들러 내부에서 검사)

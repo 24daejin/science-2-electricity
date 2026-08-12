@@ -32,9 +32,7 @@
   <div class="card" id="overall-card" style="display:none;">
     <button class="btn secondary" id="back-to-classes-btn" style="margin-bottom:14px;">← 반 선택으로</button>
     <h2>전체 학급 한눈에 보기</h2>
-    <p class="muted">모든 반 학생을 합산한 소단원별 정답률입니다.</p>
-    <div id="overall-growth-chart" class="bar-chart-wrap"></div>
-    <div id="overall-chart" class="bar-chart-wrap"></div>
+    <p class="muted">모든 반 학생을 합산한 진단평가 정답률·챗봇 참여입니다.</p>
 
     <h3 style="margin-top:20px;">반별 비교</h3>
     <div style="overflow-x:auto;">
@@ -42,7 +40,6 @@
         <thead>
           <tr>
             <th>반</th><th>학생수</th><th>진단평가</th>
-            <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
             <th>챗봇 세션수</th><th>평균 별점</th>
           </tr>
         </thead>
@@ -53,10 +50,7 @@
 
   <div class="card" id="summary-card" style="display:none;">
     <h2 id="summary-title"></h2>
-    <p class="muted">아래 차트와 표는 소단원별 정답률(형성평가)·챗봇 참여를 보여줍니다. 표의 소단원 칸 숫자는 "정답 / 시도한 문항 수"이고, 있으면 챗봇 평균 별점(★)도 함께 표시됩니다. 학생 이름을 누르면 상세 이력을 볼 수 있어요.</p>
-    <p class="muted" style="margin-top:-4px;"><strong>학습 전(진단평가) → 학습 후(형성평가)</strong> 정답률 비교로 이 반의 성장을 가늠할 수 있어요.</p>
-    <div id="growth-chart" class="bar-chart-wrap"></div>
-    <div id="summary-chart" class="bar-chart-wrap"></div>
+    <p class="muted">진단평가 정답률과 "관련 내용 답하기"(챗봇) 참여를 보여줍니다. 학생 이름을 누르면 상세 이력을 볼 수 있어요.</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn secondary" id="download-summary-csv-btn">요약 CSV 다운로드</button>
       <button class="btn secondary" id="download-all-detail-btn">반 전체 상세 자료 일괄 다운로드(텍스트)</button>
@@ -67,8 +61,7 @@
         <thead>
           <tr>
             <th>번호</th><th>이름</th><th>진단평가</th>
-            <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
-            <th>챗봇</th><th>문제풀이 점수</th><th>교과서활동 점수</th>
+            <th>챗봇</th><th>교과서활동 점수</th>
           </tr>
         </thead>
         <tbody id="summary-tbody"></tbody>
@@ -96,8 +89,8 @@
     <h3 style="margin-top:20px;">이탈(탭 전환) 로그 <span class="muted" style="font-weight:400;">— 참고용, 강제 조치 없음</span></h3>
     <div id="dropout-log"></div>
 
-    <h3 style="margin-top:20px;">소단원별 형성평가 + "관련 내용 답하기"(챗봇) 결과</h3>
-    <p class="muted">소단원마다 형성평가 응답과 챗봇 대화·루브릭 평가를 함께 모아서 보여줍니다.</p>
+    <h3 style="margin-top:20px;">소단원별 "관련 내용 답하기"(챗봇) 결과</h3>
+    <p class="muted">소단원마다 챗봇 대화·루브릭 평가를 모아서 보여줍니다.</p>
     <div id="subunit-detail"></div>
   </div>
 </div>
@@ -120,13 +113,9 @@
     overallCard: document.getElementById('overall-card'),
     overallBtn: document.getElementById('overall-btn'),
     backToClassesBtn: document.getElementById('back-to-classes-btn'),
-    overallChart: document.getElementById('overall-chart'),
-    overallGrowthChart: document.getElementById('overall-growth-chart'),
     overallTbody: document.getElementById('overall-tbody'),
     summaryCard: document.getElementById('summary-card'),
     summaryTitle: document.getElementById('summary-title'),
-    summaryChart: document.getElementById('summary-chart'),
-    growthChart: document.getElementById('growth-chart'),
     summaryTbody: document.getElementById('summary-tbody'),
     detailCard: document.getElementById('detail-card'),
     detailTitle: document.getElementById('detail-title'),
@@ -171,75 +160,16 @@
     return '★'.repeat(num) + '☆'.repeat(5 - num);
   }
 
-  /** 문항별로 시도 순서에 따른 정답/오답 점을 나열해, 재도전하며 어떻게 성장했는지 한눈에 보여줍니다. */
-  function buildAttemptTrend(responses) {
-    if (!responses.length) return '';
-    const byQuestion = {};
-    responses.forEach((r) => {
-      const qid = r['문항ID'];
-      if (!byQuestion[qid]) byQuestion[qid] = [];
-      byQuestion[qid].push(r);
-    });
-    const rows = Object.keys(byQuestion)
-      .map((qid) => {
-        const attempts = byQuestion[qid]
-          .slice()
-          .sort((a, b) => (Number(a['시도번호']) || 0) - (Number(b['시도번호']) || 0));
-        const dots = attempts
-          .map((r) => {
-            const ok = r['정오답'] === '정답';
-            return `<span title="${ok ? '정답' : '오답'}" style="color:${ok ? 'var(--color-correct)' : 'var(--color-incorrect)'}; font-weight:700;">●</span>`;
-          })
-          .join(' <span class="muted">→</span> ');
-        return `<div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; font-size:0.9rem;"><span class="muted" style="min-width:70px;">${escapeHtml(qid)}</span><span>${dots}</span></div>`;
-      })
-      .join('');
-    return `<div style="margin-bottom:12px;"><p class="muted" style="margin:0 0 6px;">문항별 정답 추이(재도전 시 왼쪽→오른쪽 순서)</p>${rows}</div>`;
-  }
-
-  /** 가벼운 SVG 막대그래프 — 별도 차트 라이브러리 없이 반/전체 정답률을 한눈에 보여줍니다. */
-  function svgBarChart(items) {
-    const width = 620, barH = 22, gap = 10, leftPad = 160, rightPad = 70, topPad = 6;
-    const height = topPad * 2 + items.length * (barH + gap) - gap;
-    const maxW = Math.max(10, width - leftPad - rightPad);
-    const bars = items
-      .map((it, i) => {
-        const y = topPad + i * (barH + gap);
-        const pct = Math.max(0, Math.min(100, it.value));
-        const w = (pct / 100) * maxW;
-        const color = pct >= 80 ? '#2f9e44' : pct >= 50 ? '#f08c00' : '#e03131';
-        return `
-        <text x="0" y="${y + barH / 2 + 4}" font-size="12" fill="#5c6270">${escapeHtml(it.label)}</text>
-        <rect x="${leftPad}" y="${y}" width="${maxW}" height="${barH}" rx="6" fill="#e1e4ec"></rect>
-        <rect x="${leftPad}" y="${y}" width="${w}" height="${barH}" rx="6" fill="${color}"></rect>
-        <text x="${leftPad + maxW + 8}" y="${y + barH / 2 + 4}" font-size="12" fill="#1c1f2b">${it.sub != null ? escapeHtml(it.sub) : Math.round(pct) + '%'}</text>`;
-      })
-      .join('');
-    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
-  }
-
-  /** 학생 배열의 subunitSummary를 소단원별로 합산해 정답률/챗봇 참여를 계산합니다(반 요약·전체 요약 공용). */
-  function computeSubunitAverages(students) {
-    return ['1', '2', '3', '4', '5', '6'].map((id) => {
-      let answered = 0, correct = 0, sessions = 0, starSum = 0, starCount = 0;
-      students.forEach((s) => {
-        const sub = s.subunitSummary && s.subunitSummary[id];
-        if (!sub) return;
-        answered += sub.answered || 0;
-        correct += sub.correct || 0;
-        sessions += sub.chatbotSessions || 0;
+  /** 학생 배열의 챗봇 참여(총 세션수 + 평균 별점)를 합산합니다(반 요약·전체 요약 공용). */
+  function computeChatStats(students) {
+    let sessions = 0, starSum = 0, starCount = 0;
+    students.forEach((s) => {
+      sessions += s.chatbotSessionCount || 0;
+      Object.values(s.subunitSummary || {}).forEach((sub) => {
         if (sub.chatbotAvgStars != null) { starSum += sub.chatbotAvgStars; starCount += 1; }
       });
-      return {
-        id,
-        label: `${id}. ${SUBUNIT_NAMES[id]}`,
-        rate: answered ? Math.round((correct / answered) * 100) : 0,
-        answered,
-        correct,
-        sessions,
-        avgStars: starCount ? Math.round((starSum / starCount) * 10) / 10 : null,
-      };
     });
+    return { sessions, avgStar: starCount ? Math.round((starSum / starCount) * 10) / 10 : null };
   }
 
   async function loadClasses() {
@@ -273,9 +203,7 @@
   async function loadClassSummary(classroom) {
     currentClassroom = classroom;
     els.summaryTitle.textContent = `${classroom}반`;
-    els.summaryTbody.innerHTML = '<tr><td colspan="12">불러오는 중...</td></tr>';
-    els.summaryChart.innerHTML = '';
-    els.growthChart.innerHTML = '';
+    els.summaryTbody.innerHTML = '<tr><td colspan="5">불러오는 중...</td></tr>';
     showView('summary');
     try {
       const [result, scores] = await Promise.all([
@@ -290,65 +218,18 @@
     }
   }
 
-  /** 학생 배열의 진단평가 정답률 vs 형성평가 정답률을 계산합니다("학습 전/후" 성장 비교용). */
-  function computeGrowthComparison(students) {
-    let diagAnswered = 0, diagCorrect = 0, formAnswered = 0, formCorrect = 0;
-    students.forEach((s) => {
-      diagAnswered += s.diagnosticAnswered || 0;
-      diagCorrect += s.diagnosticCorrect || 0;
-      Object.values(s.subunitSummary || {}).forEach((sub) => {
-        formAnswered += sub.answered || 0;
-        formCorrect += sub.correct || 0;
-      });
-    });
-    return {
-      diagRate: diagAnswered ? Math.round((diagCorrect / diagAnswered) * 100) : 0,
-      formRate: formAnswered ? Math.round((formCorrect / formAnswered) * 100) : 0,
-    };
-  }
-
-  function renderGrowthChart(students) {
-    const g = computeGrowthComparison(students);
-    els.growthChart.innerHTML = svgBarChart([
-      { label: '진단평가(학습 전)', value: g.diagRate, sub: `${g.diagRate}%` },
-      { label: '형성평가(학습 후)', value: g.formRate, sub: `${g.formRate}%` },
-    ]);
-  }
-
   function renderSummary(students, scoreBySeq) {
     currentStudents = students;
 
-    renderGrowthChart(students);
-    const averages = computeSubunitAverages(students);
-    els.summaryChart.innerHTML = svgBarChart(
-      averages.map((d) => ({
-        label: d.label,
-        value: d.rate,
-        sub: `${d.rate}% · 챗봇 ${d.sessions}회${d.avgStars != null ? ' · ★' + d.avgStars : ''}`,
-      }))
-    );
-
     els.summaryTbody.innerHTML = students
       .map((s) => {
-        const subunitCells = ['1', '2', '3', '4', '5', '6']
-          .map((id) => {
-            const sub = s.subunitSummary[id];
-            if (!sub || !sub.answered) return '<td>-</td>';
-            const rate = Math.round((sub.correct / sub.answered) * 100);
-            const bg = rate >= 80 ? '#ebfbee' : rate >= 50 ? '#fff4e0' : '#fff5f5';
-            const star = sub.chatbotAvgStars != null ? ` ★${sub.chatbotAvgStars}` : '';
-            return `<td style="background:${bg};">${sub.correct}/${sub.answered}${star}</td>`;
-          })
-          .join('');
-        const score = (scoreBySeq && scoreBySeq[s.seq]) || { quizScore: 0, activityScore: 0 };
+        const score = (scoreBySeq && scoreBySeq[s.seq]) || { activityScore: 0 };
         return `
         <tr>
           <td>${s.number}</td>
           <td><a href="#" data-seq="${s.seq}" class="student-link">${s.name}</a></td>
           <td>${s.diagnosticCorrect}/${s.diagnosticAnswered}</td>
-          ${subunitCells}
           <td>${s.chatbotSessionCount}</td>
-          <td>${score.quizScore}</td>
           <td>${score.activityScore}</td>
         </tr>`;
       })
@@ -364,8 +245,7 @@
 
   async function loadOverall() {
     showView('overall');
-    els.overallChart.innerHTML = '';
-    els.overallTbody.innerHTML = '<tr><td colspan="11">불러오는 중...</td></tr>';
+    els.overallTbody.innerHTML = '<tr><td colspan="5">불러오는 중...</td></tr>';
     try {
       if (!roster.length) roster = await callApi('listRoster', {});
       const classes = [...new Set(roster.map((s) => String(s.classroom)))].sort((a, b) => Number(a) - Number(b));
@@ -379,37 +259,17 @@
   }
 
   function renderOverall(results) {
-    const allStudents = results.flatMap((r) => r.students);
-    const g = computeGrowthComparison(allStudents);
-    els.overallGrowthChart.innerHTML = svgBarChart([
-      { label: '진단평가(학습 전)', value: g.diagRate, sub: `${g.diagRate}%` },
-      { label: '형성평가(학습 후)', value: g.formRate, sub: `${g.formRate}%` },
-    ]);
-    const overallAverages = computeSubunitAverages(allStudents);
-    els.overallChart.innerHTML = svgBarChart(overallAverages.map((d) => ({ label: d.label, value: d.rate, sub: `${d.rate}%` })));
-
     els.overallTbody.innerHTML = results
       .map(({ classroom, students }) => {
         const diagAnswered = students.reduce((sum, s) => sum + s.diagnosticAnswered, 0);
         const diagCorrect = students.reduce((sum, s) => sum + s.diagnosticCorrect, 0);
         const diagRate = diagAnswered ? Math.round((diagCorrect / diagAnswered) * 100) : 0;
-        const averages = computeSubunitAverages(students);
-        const subCells = averages
-          .map((d) => {
-            if (!d.answered) return '<td>-</td>';
-            const bg = d.rate >= 80 ? '#ebfbee' : d.rate >= 50 ? '#fff4e0' : '#fff5f5';
-            return `<td style="background:${bg};">${d.rate}%</td>`;
-          })
-          .join('');
-        const chatSessions = students.reduce((sum, s) => sum + s.chatbotSessionCount, 0);
-        const starVals = averages.filter((d) => d.avgStars != null).map((d) => d.avgStars);
-        const avgStar = starVals.length ? Math.round((starVals.reduce((a, b) => a + b, 0) / starVals.length) * 10) / 10 : '-';
+        const chat = computeChatStats(students);
         return `
         <tr>
           <td><a href="#" data-classroom="${classroom}" class="class-link">${classroom}반</a></td>
           <td>${students.length}</td><td>${diagRate}%</td>
-          ${subCells}
-          <td>${chatSessions}</td><td>${avgStar}</td>
+          <td>${chat.sessions}</td><td>${chat.avgStar != null ? chat.avgStar : '-'}</td>
         </tr>`;
       })
       .join('');
@@ -461,14 +321,8 @@
   }
 
   function buildSummaryCsv(students) {
-    const header = ['번호', '이름', '진단정답', '진단응답', '형성시도', '챗봇세션수', '1소단원', '2소단원', '3소단원', '4소단원', '5소단원', '6소단원'];
-    const rows = students.map((s) => {
-      const sub = (id) => (s.subunitSummary[id] ? `${s.subunitSummary[id].correct}/${s.subunitSummary[id].answered}` : '');
-      return [
-        s.number, s.name, s.diagnosticCorrect, s.diagnosticAnswered, s.formativeAttempts, s.chatbotSessionCount,
-        sub('1'), sub('2'), sub('3'), sub('4'), sub('5'), sub('6'),
-      ];
-    });
+    const header = ['번호', '이름', '진단정답', '진단응답', '챗봇세션수'];
+    const rows = students.map((s) => [s.number, s.name, s.diagnosticCorrect, s.diagnosticAnswered, s.chatbotSessionCount]);
     return '﻿' + [header, ...rows].map((r) => r.map(toCsvValue).join(',')).join('\r\n');
   }
 
@@ -481,14 +335,6 @@
     if (!detail.diagnosticResponses.length) lines.push('(기록 없음)');
     detail.diagnosticResponses.forEach((r) => {
       lines.push(`${fmtTime(r['제출시각'])} | ${r['문항ID']} | 선택 ${r['선택한 보기']} | ${r['확신도']} | ${r['정오답']} | ${r['시도번호'] || ''}번째`);
-    });
-    lines.push('');
-
-    lines.push('[형성평가 응답]');
-    if (!detail.formativeResponses.length) lines.push('(기록 없음)');
-    detail.formativeResponses.forEach((r) => {
-      const sname = SUBUNIT_NAMES[String(r['소단원ID'])] || r['소단원ID'];
-      lines.push(`${fmtTime(r['제출시각'])} | ${sname} | ${r['문항ID']} | 선택 ${r['선택한 보기']} | ${r['확신도']} | ${r['정오답']} | ${r['시도번호'] || ''}번째`);
     });
     lines.push('');
 
@@ -586,27 +432,7 @@
     const breakdown = result.subunitBreakdown || {};
     els.subunitDetail.innerHTML = ['1', '2', '3', '4', '5', '6']
       .map((id) => {
-        const sub = breakdown[id] || { formativeResponses: [], chatbotSessions: [] };
-
-        const trendBlock = buildAttemptTrend(sub.formativeResponses);
-
-        const formTable = sub.formativeResponses.length
-          ? `<div style="overflow-x:auto;">
-              <table class="roster-table">
-                <thead><tr><th>시각</th><th>문항ID</th><th>선택</th><th>확신도</th><th>정오답</th><th>시도</th></tr></thead>
-                <tbody>
-                  ${sub.formativeResponses
-                    .map(
-                      (r) => `<tr>
-                        <td>${fmtTime(r['제출시각'])}</td><td>${r['문항ID']}</td><td>${r['선택한 보기']}</td>
-                        <td>${r['확신도']}</td><td>${r['정오답']}</td><td>${r['시도번호'] || ''}</td>
-                      </tr>`
-                    )
-                    .join('')}
-                </tbody>
-              </table>
-            </div>`
-          : '<p class="muted">형성평가 응답 기록이 없습니다.</p>';
+        const sub = breakdown[id] || { chatbotSessions: [] };
 
         const chatBlocks = sub.chatbotSessions.length
           ? sub.chatbotSessions
@@ -632,10 +458,7 @@
         return `
         <div class="card" style="margin-top:14px;">
           <h3 style="margin-top:0;">${id}. ${SUBUNIT_NAMES[id]}</h3>
-          <p class="muted" style="margin:-6px 0 8px;">형성평가</p>
-          ${trendBlock}
-          ${formTable}
-          <p class="muted" style="margin:16px 0 8px;">관련 내용 답하기(챗봇)</p>
+          <p class="muted" style="margin:-6px 0 8px;">관련 내용 답하기(챗봇)</p>
           ${chatBlocks}
         </div>`;
       })

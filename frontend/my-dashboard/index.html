@@ -23,6 +23,13 @@
   <div id="view" class="card" style="display:none;">
     <div style="margin-bottom:16px;">
       <span class="tag">교과서 활동 점수 <strong id="score-activity">0</strong>점</span>
+      <span class="tag" id="score-diagnostic" style="display:none;"></span>
+    </div>
+
+    <div id="diagnostic-section" style="display:none; margin-bottom:24px;">
+      <h2>진단평가 결과</h2>
+      <p class="muted" id="diagnostic-summary"></p>
+      <div id="weak-concepts"></div>
     </div>
 
     <h2>"관련 내용 답하기" 평가</h2>
@@ -42,6 +49,10 @@
     view: document.getElementById('view'),
     subtitle: document.getElementById('subtitle'),
     scoreActivity: document.getElementById('score-activity'),
+    scoreDiagnostic: document.getElementById('score-diagnostic'),
+    diagnosticSection: document.getElementById('diagnostic-section'),
+    diagnosticSummary: document.getElementById('diagnostic-summary'),
+    weakConcepts: document.getElementById('weak-concepts'),
     evaluations: document.getElementById('evaluations'),
   };
 
@@ -83,11 +94,46 @@
       .join('');
   }
 
+  function renderDiagnostic(answered, correct, weakConcepts) {
+    if (!answered) {
+      els.diagnosticSection.style.display = 'none';
+      els.scoreDiagnostic.style.display = 'none';
+      return;
+    }
+
+    els.scoreDiagnostic.style.display = 'inline-block';
+    els.scoreDiagnostic.textContent = `진단평가 ${correct}/${answered}개 정답`;
+
+    els.diagnosticSection.style.display = 'block';
+    els.diagnosticSummary.textContent = `${answered}문제 중 ${correct}개를 맞혔어요.`;
+
+    if (!weakConcepts.length) {
+      els.weakConcepts.innerHTML = '<p class="muted">틀린 문제 없이 다 맞혔어요! 👏</p>';
+      return;
+    }
+
+    els.weakConcepts.innerHTML =
+      '<p class="muted" style="margin-bottom:10px;">아래 개념은 다시 한번 살펴보면 좋아요.</p>' +
+      weakConcepts
+        .map((w) => {
+          const chatLink = `../chatbot/index.html?concept=${encodeURIComponent(w.concept)}`;
+          return `
+      <div class="weak-concept-card">
+        <h3>${escapeHtml(w.concept)}</h3>
+        ${w.question ? `<p class="question-text">Q. ${escapeHtml(w.question)}</p>` : ''}
+        <p class="explanation">${escapeHtml(w.explanation || '설명이 등록되어 있지 않아요.')}</p>
+        <a class="btn secondary" style="margin-top:10px; text-decoration:none; display:inline-flex;" href="${chatLink}">"관련 내용 답하기"로 더 물어보기</a>
+      </div>`;
+        })
+        .join('');
+  }
+
   async function load() {
     try {
       const result = await callApi('getMyDashboard', {});
       els.subtitle.textContent = `${result.student.classroom}반 ${result.student.number}번 ${result.student.name}님`;
       els.scoreActivity.textContent = result.activityScore;
+      renderDiagnostic(result.diagnosticAnswered || 0, result.diagnosticCorrect || 0, result.weakConcepts || []);
       renderEvaluations(result.chatbotEvaluations || []);
       els.view.style.display = 'block';
     } catch (err) {

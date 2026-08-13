@@ -537,6 +537,33 @@ p.muted,
   color: var(--color-incorrect);
 }
 
+/* "내 대시보드"의 진단평가 오답 개념 복습 카드 — 오답이지만 야단치는 톤이 아니라
+   "다시 보면 좋을 것"이라는 느낌을 주려고 --color-incorrect(빨강) 대신 --color-accent-2(주황)를 씀 */
+.weak-concept-card {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-accent-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 14px 18px;
+  margin-bottom: 12px;
+}
+
+.weak-concept-card h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.weak-concept-card .question-text {
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+
+.weak-concept-card .explanation {
+  font-size: 0.92rem;
+  margin: 0;
+}
+
 /* 교사의 "반별 오늘 활동 지정" 카드: 반 카드를 2열로 나눠 배치(반이 많아도 세로로 한없이
    길어지지 않도록). 좁은 화면(모바일)에서는 1열로 자연스럽게 접힙니다. */
 .classroom-grid {

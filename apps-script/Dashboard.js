@@ -4,7 +4,7 @@
  *  - Dashboard_getStudentDetail: 교사용, 학생 한 명의 상세(전체 응답 이력 + 챗봇 대화 전문).
  *    학기말 생활기록부 작성 참고 자료로도 그대로 활용할 수 있도록 원본 데이터를 시간순으로 보여줌.
  *  - Dashboard_getMyDashboard: 학생 본인용 "내 대시보드". 반 평균/친구 비교 없이 본인의
- *    점수·챗봇 평가만 보여주는 동기부여용 요약.
+ *    점수·진단평가 결과(+ 오답 개념 설명)·챗봇 평가만 보여주는 동기부여용 요약.
  *
  * (형성평가는 종이 학습지로 진행하므로 이 앱은 더 이상 형성평가 데이터를 다루지 않습니다.)
  *
@@ -25,6 +25,65 @@ function Dashboard_buildConceptSubunitMap_() {
     if (concept) map[concept] = id;
   });
   return map;
+}
+
+// 진단평가 확신도 라벨 -> 버킷. frontend/assets/js/confidence.js의 CONFIDENCE_TAGS와 동일한 규칙
+// (진짜 개념 이해에 기반한 확신만 "확신", 소거법/추측은 "비확신")을 서버에서도 써서, 학생이
+// 실제로 봤던 것과 같은 피드백 문구를 "내 대시보드"에서도 그대로 보여줍니다.
+var DIAGNOSTIC_CONFIDENCE_BUCKET_BY_LABEL = {
+  '정확하게 알고 있음': 'confident',
+  '다른 것들이 아니라서': 'unsure',
+  '정확하게는 잘 모르겠음': 'unsure',
+};
+
+/**
+ * 학생 한 명의 진단평가 결과 + "다시 봐야 할 개념" 목록을 계산합니다(Dashboard_getMyDashboard 전용).
+ * 문항마다 최신 시도만 반영합니다(재도전 시 이전 오답은 무시 — 학생 화면과 동일한 규칙).
+ * 개념 설명은 새로 생성하지 않고, 진단평가_문항에 교사가 이미 써둔 오답 피드백(확신/비확신 2종
+ * 중 그 학생이 실제로 골랐던 확신도에 맞는 것)을 그대로 재사용합니다.
+ */
+function Dashboard_buildDiagnosticReview_(seq) {
+  var responses = (SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_RESPONSES) || [])
+    .filter(function (r) { return String(r['순번']) === seq; })
+    .sort(function (a, b) { return new Date(a['제출시각']) - new Date(b['제출시각']); });
+
+  var latestByQuestion = {};
+  responses.forEach(function (r) { latestByQuestion[r['문항ID']] = r; }); // 뒤에 온 게 이전 걸 덮어써서 최신 시도만 남음
+
+  var questionRows = SheetUtils_getRows(SHEET_NAMES.DIAGNOSTIC_QUESTIONS) || [];
+  var questionById = {};
+  questionRows.forEach(function (r) { questionById[String(r['문항ID']).trim()] = r; });
+
+  var answeredIds = Object.keys(latestByQuestion);
+  var correctCount = answeredIds.filter(function (qid) { return latestByQuestion[qid]['정오답'] === '정답'; }).length;
+
+  var weakConcepts = [];
+  var seenConcepts = {};
+  answeredIds.forEach(function (qid) {
+    var resp = latestByQuestion[qid];
+    if (resp['정오답'] === '정답') return;
+    var q = questionById[qid];
+    if (!q) return;
+    var concept = String(q['연결 개념(중등 단원)'] || '').trim();
+    if (!concept || seenConcepts[concept]) return; // 같은 개념 문항이 여러 개면 한 번만 보여줌
+    seenConcepts[concept] = true;
+
+    var bucket = DIAGNOSTIC_CONFIDENCE_BUCKET_BY_LABEL[resp['확신도']] || 'unsure';
+    var feedbackField = bucket === 'confident' ? '피드백_오답_확신' : '피드백_오답_비확신';
+
+    weakConcepts.push({
+      concept: concept,
+      priorArea: q['선수학습 영역'] || '',
+      question: q['문제'] || '',
+      explanation: q[feedbackField] || '',
+    });
+  });
+
+  return {
+    diagnosticAnswered: answeredIds.length,
+    diagnosticCorrect: correctCount,
+    weakConcepts: weakConcepts,
+  };
 }
 
 /**
@@ -152,6 +211,8 @@ function Dashboard_getMyDashboard(payload, auth) {
     })
     .sort(function (a, b) { return new Date(a.time) - new Date(b.time); });
 
+  var diagnosticReview = Dashboard_buildDiagnosticReview_(seq);
+
   return {
     student: {
       name: student ? student['이름'] : auth.name,
@@ -159,6 +220,9 @@ function Dashboard_getMyDashboard(payload, auth) {
       number: auth.number,
     },
     activityScore: sumBy('교과서활동'),
+    diagnosticAnswered: diagnosticReview.diagnosticAnswered,
+    diagnosticCorrect: diagnosticReview.diagnosticCorrect,
+    weakConcepts: diagnosticReview.weakConcepts,
     chatbotEvaluations: evaluations,
   };
 }

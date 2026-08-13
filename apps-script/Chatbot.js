@@ -3,10 +3,14 @@
  * - 사전에 정해진 질문 트리를 쓰지 않고, 학생 답변을 바탕으로 Claude가 매번 다음 질문을 새로 생성합니다.
  * - 최대 5턴(챗봇 질문 5회) 후 종료하며, 다룬/놓친 개념 요약을 제공합니다.
  * - 전체 대화를 챗봇_로그에 저장합니다. 대화 상태는 챗봇_로그를 진실 공급원으로 재구성합니다(클라이언트 조작 방지).
+ * - 같은 개념으로 새 대화를 시작하는 건 학생당 최대 3번까지만 허용합니다(Chatbot_start 참고) —
+ *   대화 시작 한 번마다 Claude API를 실제로 호출하므로(첫 질문 생성), 무제한 재시작을 막아
+ *   비용을 통제합니다. 실제로 새로고침 버그로 한 학생이 세션을 30개 넘게 만든 사례가 있었음.
  */
 
 var CHATBOT_LOG_HEADERS = ['세션ID', '턴번호', '발화자', '메시지', '개념', '순번', '이름', '반', '번호', '시각'];
 var CHATBOT_MAX_TURNS = 5;
+var CHATBOT_MAX_SESSIONS_PER_CONCEPT = 3;
 
 // 개념은 더 이상 고정된 6개 화이트리스트로 검증하지 않습니다. 형성평가_문항의 "핵심개념" 값은
 // 문항별 세부 개념(예: "원자의 구조")이라 6개보다 훨씬 다양하고, 시트가 SSOT이므로
@@ -126,10 +130,35 @@ function Chatbot_appendLog_(sessionId, turnNumber, speaker, message, concept, au
   });
 }
 
-/** action=startChatbotSession: 새 세션을 만들고 첫 질문을 생성합니다. */
+/** 이 학생이 지금까지 이 개념으로 대화를 몇 번 "시작"했는지(완료 여부 무관, 세션 개수 기준). */
+function Chatbot_countPriorSessions_(seq, concept) {
+  var rows = SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG) || [];
+  var sessionIds = {};
+  rows.forEach(function (r) {
+    if (String(r['순번']) === String(seq) && String(r['개념']) === concept) {
+      sessionIds[r['세션ID']] = true;
+    }
+  });
+  return Object.keys(sessionIds).length;
+}
+
+/**
+ * action=startChatbotSession: 새 세션을 만들고 첫 질문을 생성합니다.
+ * 같은 개념으로 CHATBOT_MAX_SESSIONS_PER_CONCEPT번을 이미 시작했으면, Claude를 호출하지 않고
+ * (비용 발생 없이) limitReached만 반환합니다 — 프론트는 이걸 오류가 아니라 안내 문구로 보여줍니다.
+ */
 function Chatbot_start(payload, auth) {
   var concept = String(payload.concept || '').trim();
   if (!concept) throw new Error('concept이 필요합니다.');
+
+  var priorSessions = Chatbot_countPriorSessions_(auth.seq, concept);
+  if (priorSessions >= CHATBOT_MAX_SESSIONS_PER_CONCEPT) {
+    return {
+      limitReached: true,
+      maxSessions: CHATBOT_MAX_SESSIONS_PER_CONCEPT,
+      message: '이 개념은 이미 ' + CHATBOT_MAX_SESSIONS_PER_CONCEPT + '번 대화해봤어요. 더 필요하면 선생님께 말씀해주세요.',
+    };
+  }
 
   var sessionId = Utilities.getUuid();
   var systemPrompt = Chatbot_buildSystemPrompt_(concept);
@@ -150,6 +179,7 @@ function Chatbot_start(payload, auth) {
     maxTurns: CHATBOT_MAX_TURNS,
     message: firstQuestion,
     isFinal: false,
+    attemptNumber: priorSessions + 1,
   };
 }
 

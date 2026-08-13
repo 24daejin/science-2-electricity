@@ -19,6 +19,7 @@
   </div>
 
   <div id="error-view" class="card error" style="display:none;"></div>
+  <div id="limit-view" class="card" style="display:none;"></div>
 
   <div id="chat-view" class="card" style="display:none;">
     <p class="muted" id="turn-counter"></p>
@@ -50,6 +51,7 @@
 
   const els = {
     error: document.getElementById('error-view'),
+    limit: document.getElementById('limit-view'),
     chat: document.getElementById('chat-view'),
     loading: document.getElementById('loading-view'),
     loadingHint: document.getElementById('loading-hint'),
@@ -107,8 +109,18 @@
   function showError(msg) {
     els.loading.style.display = 'none';
     els.chat.style.display = 'none';
+    els.limit.style.display = 'none';
     els.error.style.display = 'block';
     els.error.textContent = msg;
+  }
+
+  // 오류가 아니라 "이미 여러 번 대화해봤다"는 안내라, error-view(빨간 글씨)와는 다른 톤으로 보여준다.
+  function showLimitReached(msg) {
+    els.loading.style.display = 'none';
+    els.chat.style.display = 'none';
+    els.error.style.display = 'none';
+    els.limit.style.display = 'block';
+    els.limit.innerHTML = `<p class="status-banner" style="margin:0;">${msg}</p>`;
   }
 
   function addBubble(speaker, text, record) {
@@ -181,10 +193,17 @@
 
     try {
       const result = await callApi('startChatbotSession', { concept });
+      if (result.limitReached) {
+        showLimitReached(result.message);
+        return;
+      }
       sessionId = result.sessionId;
       maxTurns = result.maxTurns || 5;
       els.loading.style.display = 'none';
       els.chat.style.display = 'block';
+      if (result.attemptNumber > 1) {
+        document.getElementById('concept-subtitle').textContent += ` · ${result.attemptNumber}번째 대화예요`;
+      }
       setTurnCounter(result.questionNumber);
       addBubble('bot', result.message);
       saveSessionState();

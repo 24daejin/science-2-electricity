@@ -5,7 +5,18 @@
  * 이후 모든 API 호출에 함께 보냅니다.
  */
 
+/**
+ * 반 전체가 "자, 접속하세요"에 맞춰 거의 같은 순간에 로그인 버튼을 누르면 앱스크립트에
+ * 요청이 몰려서 순간적으로 튕기는 경우가 있다. 학생 눈에는 안 보일 정도로 짧게(0~1.5초)
+ * 무작위로 지연시켜서, 실제 서버에는 요청이 자연스럽게 흩어져 도착하게 한다. 교사·학부모는
+ * 반 단위로 몰려서 로그인할 일이 없어 대상에서 뺐다.
+ */
+function randomLoginJitterMs() {
+  return Math.floor(Math.random() * 1500);
+}
+
 async function loginStudent(classroom, number, name, code) {
+  await new Promise((resolve) => setTimeout(resolve, randomLoginJitterMs()));
   const result = await callApi('login', { role: 'student', classroom, number, name, code });
   sessionStorage.setItem('authToken', result.authToken);
   sessionStorage.setItem('user', JSON.stringify(result.user));

@@ -103,13 +103,30 @@ function SheetUtils_ensureSheet(sheetName, headers) {
   return sheet;
 }
 
+/**
+ * 시트에 쓰기 전 값 하나를 살균합니다("수식 인젝션" 방지). 챗봇 메시지, 교과서 활동 답변처럼
+ * 학생이 자유롭게 입력하는 텍스트가 =, +, -, @ 로 시작하면, 선생님이 나중에 시트를 열 때
+ * 진짜 수식으로 해석돼(예: =HYPERLINK("가짜주소","클릭") 같은 피싱 링크) 실행될 수 있습니다.
+ * 그런 문자로 시작하면 맨 앞에 작은따옴표를 붙여 무조건 순수 텍스트로 저장합니다(구글 시트는
+ * 셀 값이 작은따옴표로 시작하면 그 뒤를 수식으로 해석하지 않고 그대로 문자로 취급합니다).
+ * 문자열이 아닌 값(숫자, 날짜 등)은 그대로 둡니다.
+ */
+function SheetUtils_sanitizeCellValue_(value) {
+  if (typeof value !== 'string') return value;
+  return /^[=+\-@]/.test(value) ? "'" + value : value;
+}
+
+function SheetUtils_sanitizeRow_(row) {
+  return row.map(SheetUtils_sanitizeCellValue_);
+}
+
 /** headers 순서에 맞춰 한 행을 추가합니다. rowObj에 없는 컬럼은 빈 문자열로 채웁니다. */
 function SheetUtils_appendRow(sheetName, headers, rowObj) {
   var sheet = SheetUtils_ensureSheet(sheetName, headers);
   var row = headers.map(function (h) {
     return rowObj[h] !== undefined && rowObj[h] !== null ? rowObj[h] : '';
   });
-  sheet.appendRow(row);
+  sheet.appendRow(SheetUtils_sanitizeRow_(row));
   SheetUtils_invalidateCache_(sheetName);
 }
 
@@ -121,7 +138,7 @@ function SheetUtils_updateRow(sheetName, headers, rowNumber, rowObj) {
   var row = headers.map(function (h) {
     return rowObj[h] !== undefined && rowObj[h] !== null ? rowObj[h] : '';
   });
-  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([SheetUtils_sanitizeRow_(row)]);
   SheetUtils_invalidateCache_(sheetName);
 }
 

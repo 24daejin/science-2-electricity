@@ -36,7 +36,7 @@
     </div>
   </div>
 
-  <div id="loading-view" class="card">챗봇을 준비하는 중입니다...</div>
+  <div id="loading-view" class="card">챗봇을 준비하는 중입니다... <span id="loading-hint" class="muted"></span></div>
 </div>
 
 <script src="../assets/js/config.js"></script>
@@ -52,6 +52,7 @@
     error: document.getElementById('error-view'),
     chat: document.getElementById('chat-view'),
     loading: document.getElementById('loading-view'),
+    loadingHint: document.getElementById('loading-hint'),
     log: document.getElementById('chat-log'),
     turnCounter: document.getElementById('turn-counter'),
     input: document.getElementById('chat-input'),
@@ -66,6 +67,43 @@
   let maxTurns = 5;
   let isFinal = false;
 
+  /**
+   * 대화 상태를 sessionStorage에 저장해서, 새로고침/뒤로가기-다시들어오기를 해도
+   * 이어지게 한다. (배경: 로딩이 오래 걸릴 때 학생이 "멈췄나?" 싶어 다시 들어오면
+   * 매번 새 세션이 생기고 이전 대화가 통째로 사라지는 문제가 실제 수업에서 다수
+   * 발생했음 — 세션ID를 브라우저 변수에만 두고 어디에도 저장하지 않았던 게 원인.)
+   * 개념(concept)별로 따로 저장하므로, 다른 소단원 챗봇을 열면 그건 새로 시작된다.
+   */
+  function storageKey() {
+    return 'chatbotSession:' + concept;
+  }
+
+  function saveSessionState() {
+    try {
+      sessionStorage.setItem(storageKey(), JSON.stringify({
+        sessionId,
+        maxTurns,
+        isFinal,
+        turnNumber: lastQuestionNumber,
+        messages: chatMessages,
+      }));
+    } catch (err) {
+      // sessionStorage가 꽉 찼거나 막혀 있어도 대화 자체는 계속 진행되게 조용히 무시
+    }
+  }
+
+  function loadSessionState() {
+    try {
+      const raw = sessionStorage.getItem(storageKey());
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  const chatMessages = []; // { speaker: 'bot'|'student'|'system', text }
+  let lastQuestionNumber = 1;
+
   function showError(msg) {
     els.loading.style.display = 'none';
     els.chat.style.display = 'none';
@@ -73,7 +111,7 @@
     els.error.textContent = msg;
   }
 
-  function addBubble(speaker, text) {
+  function addBubble(speaker, text, record) {
     const row = document.createElement('div');
     row.className = 'chat-row ' + speaker; // 'bot' | 'student' | 'system'
 
@@ -92,9 +130,12 @@
 
     els.log.appendChild(row);
     row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    if (record !== false) chatMessages.push({ speaker, text });
   }
 
   function setTurnCounter(turnNumber) {
+    lastQuestionNumber = turnNumber;
     els.turnCounter.textContent = `대화 ${Math.min(turnNumber, maxTurns)} / ${maxTurns}`;
   }
 
@@ -104,6 +145,7 @@
     els.inputRow.style.display = 'none';
     els.micStatus.style.display = 'none';
     els.finalActions.style.display = 'block';
+    saveSessionState();
   }
 
   async function start() {
@@ -113,6 +155,30 @@
     }
     document.getElementById('concept-subtitle').textContent = `오늘의 개념: ${concept}`;
 
+    // 이미 진행 중이던(또는 끝난) 대화가 있으면 서버에 새로 요청하지 않고 그대로 이어서 보여준다.
+    const saved = loadSessionState();
+    if (saved && saved.sessionId && Array.isArray(saved.messages) && saved.messages.length) {
+      sessionId = saved.sessionId;
+      maxTurns = saved.maxTurns || 5;
+      isFinal = !!saved.isFinal;
+      els.loading.style.display = 'none';
+      els.chat.style.display = 'block';
+      setTurnCounter(saved.turnNumber || 1);
+      saved.messages.forEach((m) => addBubble(m.speaker, m.text, false));
+      chatMessages.push(...saved.messages);
+      if (isFinal) endConversation();
+      initDropoutTracking('chatbot');
+      return;
+    }
+
+    // 첫 질문은 Claude API를 호출해서 만들기 때문에 몇 초가 걸린다 — 그 사이 "멈춘 것처럼"
+    // 보여서 학생이 새로고침/뒤로가기를 반복하면 그때마다 새 세션이 생겨버리므로, 오래
+    // 걸리고 있다는 걸 명확히 알려서 기다리게 한다.
+    els.loadingHint.textContent = '(AI가 첫 질문을 만들고 있어요, 5~10초 정도 걸려요)';
+    const slowHintTimer = setTimeout(() => {
+      els.loadingHint.textContent = '조금 더 걸리고 있어요. 새로고침하지 않아도 곧 나타나니 잠시만 기다려주세요!';
+    }, 6000);
+
     try {
       const result = await callApi('startChatbotSession', { concept });
       sessionId = result.sessionId;
@@ -121,10 +187,13 @@
       els.chat.style.display = 'block';
       setTurnCounter(result.questionNumber);
       addBubble('bot', result.message);
+      saveSessionState();
 
       initDropoutTracking('chatbot');
     } catch (err) {
       showError('챗봇을 시작하지 못했습니다: ' + err.message);
+    } finally {
+      clearTimeout(slowHintTimer);
     }
   }
 
@@ -194,6 +263,7 @@
 
     if (isRecording) recognition.stop();
     addBubble('student', message);
+    saveSessionState();
     els.input.value = '';
     els.sendBtn.disabled = true;
     els.input.disabled = true;
@@ -203,9 +273,10 @@
       const result = await callApi('sendChatbotMessage', { sessionId, concept, message });
       setTurnCounter(result.questionNumber);
       addBubble(result.isFinal ? 'system' : 'bot', result.message);
+      saveSessionState();
       if (result.isFinal) endConversation();
     } catch (err) {
-      addBubble('system', '메시지를 보내지 못했습니다: ' + err.message);
+      addBubble('system', '메시지를 보내지 못했습니다: ' + err.message, false);
     } finally {
       if (!isFinal) {
         els.sendBtn.disabled = false;

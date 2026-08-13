@@ -415,14 +415,19 @@
       : '<p class="muted">응답 기록이 없습니다.</p>';
 
     const dropoutLog = result.dropoutLog || [];
+    const massEventCount = dropoutLog.filter((d) => d.massEvent).length;
     els.dropoutLog.innerHTML = dropoutLog.length
-      ? `<p class="muted" style="margin-top:-4px;">총 ${dropoutLog.length}건</p>
+      ? `<p class="muted" style="margin-top:-4px;">총 ${dropoutLog.length}건${
+          massEventCount ? ` (그중 ${massEventCount}건은 같은 반 여러 명이 동시에 겹침 — 아래 회색 표시, 수업 전환·네트워크 등 일반적 상황일 가능성이 큼)` : ''
+        }</p>
          <div style="overflow-x:auto;">
            <table class="roster-table">
              <thead><tr><th>시각</th><th>화면</th><th>이벤트</th></tr></thead>
              <tbody>
                ${dropoutLog
-                 .map((d) => `<tr><td>${fmtTime(d.time)}</td><td>${escapeHtml(d.screen)}</td><td>${d.event === 'hidden' ? '다른 탭/창으로 이동' : '돌아옴'}</td></tr>`)
+                 .map(
+                   (d) => `<tr${d.massEvent ? ' class="muted"' : ''}><td>${fmtTime(d.time)}</td><td>${escapeHtml(d.screen)}</td><td>${d.event === 'hidden' ? '다른 탭/창으로 이동' : '돌아옴'}${d.massEvent ? ' · 동시 이탈 추정' : ''}</td></tr>`
+                 )
                  .join('')}
              </tbody>
            </table>

@@ -86,6 +86,41 @@ function Dashboard_buildDiagnosticReview_(seq) {
   };
 }
 
+var DROPOUT_MASS_EVENT_WINDOW_MS = 30 * 1000; // 이 시간 안에 겹치면 "같은 시점"으로 봄
+var DROPOUT_MASS_EVENT_MIN_OTHER_STUDENTS = 3; // 본인 제외 이 인원 이상 겹치면 "동시 이탈"로 표시
+
+/**
+ * 같은 반에서 짧은 시간 안에 여러 명이 한꺼번에 이탈/복귀했다면(수업 전환, 네트워크 문제 등
+ * 흔히 있는 상황일 가능성이 큼) 그렇다고 표시만 해서 구분할 수 있게 합니다. 데이터 자체는
+ * 지우지 않습니다 — 나중에 특정 학생만 반복되는 패턴을 다시 봐야 할 수도 있어서요
+ * (README 유의사항: "이탈 로그는 참고 자료로만 활용, 강제 조치 없음"이라는 원칙과 같은 맥락).
+ * @param {string} classroom
+ * @param {string} seq 이 학생의 순번
+ * @param {Array} allDropoutRows 이탈_로그 시트 전체 행(호출부가 한 번만 읽어서 넘겨줌)
+ */
+function Dashboard_buildDropoutLog_(classroom, seq, allDropoutRows) {
+  var classRows = allDropoutRows.filter(function (r) { return String(r['반']).trim() === String(classroom).trim(); });
+  var studentRows = classRows
+    .filter(function (r) { return String(r['순번']) === seq; })
+    .sort(function (a, b) { return new Date(a['시각']) - new Date(b['시각']); });
+
+  return studentRows.map(function (r) {
+    var t = new Date(r['시각']).getTime();
+    var otherSeqsNearby = {};
+    classRows.forEach(function (o) {
+      var oSeq = String(o['순번']);
+      if (oSeq === seq) return;
+      if (Math.abs(new Date(o['시각']).getTime() - t) <= DROPOUT_MASS_EVENT_WINDOW_MS) otherSeqsNearby[oSeq] = true;
+    });
+    return {
+      time: r['시각'],
+      screen: r['화면'] || '',
+      event: r['이벤트'] || '',
+      massEvent: Object.keys(otherSeqsNearby).length >= DROPOUT_MASS_EVENT_MIN_OTHER_STUDENTS,
+    };
+  });
+}
+
 /**
  * 학생 한 명의 소단원별 챗봇 참여(세션수/평균 별점)를 계산합니다.
  * Dashboard_getClassSummary(반 전체)와 Dashboard_getMyDashboard(학생 본인용)가 공유합니다.
@@ -251,12 +286,8 @@ function Dashboard_getStudentDetail(payload, auth) {
     return String(r['순번']) === seq;
   });
   // 이탈(탭 전환) 로그는 강제 조치 없이 참고용으로만 함께 보여줍니다(README 유의사항 참고).
-  var dropoutLog = (SheetUtils_getRows(SHEET_NAMES.DROPOUT_LOG) || [])
-    .filter(function (r) { return String(r['순번']) === seq; })
-    .sort(function (a, b) { return new Date(a['시각']) - new Date(b['시각']); })
-    .map(function (r) {
-      return { time: r['시각'], screen: r['화면'] || '', event: r['이벤트'] || '' };
-    });
+  // 같은 반에서 여러 명이 동시에 겹치는 이벤트는 massEvent: true로 표시해 구분합니다.
+  var dropoutLog = Dashboard_buildDropoutLog_(student['반'], seq, SheetUtils_getRows(SHEET_NAMES.DROPOUT_LOG) || []);
   var evalBySession = {};
   evalRows.forEach(function (r) { evalBySession[r['세션ID']] = r; });
 

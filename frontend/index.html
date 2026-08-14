@@ -262,13 +262,13 @@
 
   /**
    * 학생 화면: 선생님이 지정한 활동들이 속한 그룹(진단평가 또는 소단원) 카드 하나만 보여주고,
-   * 그 안에 그 그룹의 모든 활동을 목록으로 전부 보여줍니다. 지정된 활동(하나 또는 여러 개)만
-   * 실제로 눌리는 버튼이 되고, 나머지는 "비활성"이라는 말 없이 그냥 누를 수 없는 회색 줄로
-   * 나열됩니다.
+   * 그 안에는 활성화된 활동만 버튼으로 나열합니다. 비활성 활동은 아예 안 보이게 뺍니다 —
+   * 예전엔 회색 줄로라도 보여줬는데, 다른 교사가 어떤 활동을 이 앱 대신 교과서로만 진행할
+   * 때 학생이 "이건 왜 안 되지?"라고 오해할 수 있어서 완전히 숨기는 쪽으로 바꿨습니다.
    */
   function renderStudentActivityCard(container) {
     document.getElementById('subunit-groups-title').textContent = '오늘의 활동';
-    document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동만 누를 수 있어요. 나머지는 오늘 할 일 목록으로만 보여요.';
+    document.getElementById('subunit-groups-desc').textContent = '선생님이 지금 지정한 활동이에요.';
 
     if (!activeActivityKeys.length) {
       container.innerHTML = '';
@@ -288,12 +288,8 @@
       : '';
 
     const rows = group.activities
-      .map((a) => {
-        if (activeActivityKeys.includes(a.key)) {
-          return `<button type="button" class="btn block" data-activity-key="${a.key}">${escapeHtml(a.label)}</button>`;
-        }
-        return `<div class="activity-row">${escapeHtml(a.label)}</div>`;
-      })
+      .filter((a) => activeActivityKeys.includes(a.key))
+      .map((a) => `<button type="button" class="btn block" data-activity-key="${a.key}">${escapeHtml(a.label)}</button>`)
       .join('');
 
     container.innerHTML = `

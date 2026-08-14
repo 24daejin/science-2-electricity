@@ -195,10 +195,14 @@ function Chatbot_sendMessage(payload, auth) {
   var history = Chatbot_readHistory_(sessionId);
   if (history.length === 0) {
     // 세션을 막 시작한 직후 바로 답을 보내면, 방금 쓴 첫 질문 로그가 시트에 완전히 반영되기
-    // 전에 이 요청이 시트를 읽어버리는 경우가 드물게 있다(특히 여러 학생이 동시에 몰릴 때).
-    // 바로 포기하지 않고 짧게 기다렸다가 한 번 더 읽어본다.
-    Utilities.sleep(600);
-    history = Chatbot_readHistory_(sessionId);
+    // 전에 이 요청이 시트를 읽어버리는 경우가 있다(특히 여러 학생이 동시에 몰릴 때 —
+    // 0.6초 한 번으로는 부족한 경우가 실제로 있었음). 점점 길게 간격을 두고 최대 3번 더
+    // 읽어본다(누적 최대 3.5초 — 정상적인 경우엔 이 지연이 전혀 발생하지 않음).
+    var retryDelaysMs = [500, 1000, 2000];
+    for (var i = 0; i < retryDelaysMs.length && history.length === 0; i++) {
+      Utilities.sleep(retryDelaysMs[i]);
+      history = Chatbot_readHistory_(sessionId);
+    }
   }
   if (history.length === 0) throw new Error('존재하지 않는 세션입니다. 새로 시작해주세요.');
 

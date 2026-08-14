@@ -107,7 +107,27 @@ function ChatbotEval_save_(sessionId, concept, standard, rubric, auth) {
   });
 }
 
+function Chatbot_historyCacheKey_(sessionId) {
+  return 'chatbotHistory_' + sessionId;
+}
+
+/**
+ * 대화 기록을 읽습니다. 시트(SSOT)를 바로 읽지 않고 CacheService를 먼저 확인합니다 —
+ * 시트는 방금 쓴 내용이 몇 초 지연 후에야 보이는 경우가 있는데(특히 동시 접속이 몰릴 때),
+ * CacheService는 훨씬 빠르고 일관되게 방금 쓴 값을 그대로 돌려주기 때문입니다. 캐시가 없을
+ * 때만(오래 지나 만료됐거나 드문 캐시 장애) 시트에서 다시 조립합니다.
+ */
 function Chatbot_readHistory_(sessionId) {
+  var cached = CacheService.getScriptCache().get(Chatbot_historyCacheKey_(sessionId));
+  if (cached) {
+    try {
+      var parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch (e) {
+      // 캐시 값이 깨졌으면 무시하고 아래에서 시트로 재구성한다.
+    }
+  }
+
   var rows = SheetUtils_getRows(SHEET_NAMES.CHATBOT_LOG);
   if (!rows) return [];
   return rows
@@ -128,6 +148,23 @@ function Chatbot_appendLog_(sessionId, turnNumber, speaker, message, concept, au
     번호: auth.number || '',
     시각: new Date(),
   });
+
+  // 시트 기록(SSOT)은 이미 됐지만, 바로 다음 요청이 이걸 곧바로 다시 읽을 때 시트 반영
+  // 지연 때문에 "존재하지 않는 세션"으로 보이는 걸 막기 위해 캐시에도 같은 턴을 누적해둔다.
+  // 대화가 보통 몇 분 안에 끝나므로 30분이면 충분하다. 캐시 저장이 실패해도 시트 기록은
+  // 이미 됐으므로 데이터가 사라지는 건 아니다 — 이건 순전히 속도/일관성 보강용.
+  try {
+    var cacheKey = Chatbot_historyCacheKey_(sessionId);
+    var existingRaw = CacheService.getScriptCache().get(cacheKey);
+    var history = [];
+    if (existingRaw) {
+      try { history = JSON.parse(existingRaw); } catch (e) { history = []; }
+    }
+    history.push({ 세션ID: sessionId, 턴번호: turnNumber, 발화자: speaker, 메시지: message, 개념: concept });
+    CacheService.getScriptCache().put(cacheKey, JSON.stringify(history), 1800);
+  } catch (e) {
+    // 캐시 저장 실패는 조용히 무시(용량 초과 등) — 시트 기록은 이미 성공했다.
+  }
 }
 
 /** 이 학생이 지금까지 이 개념으로 대화를 몇 번 "시작"했는지(완료 여부 무관, 세션 개수 기준). */
@@ -192,17 +229,12 @@ function Chatbot_sendMessage(payload, auth) {
     throw new Error('sessionId, concept, message가 모두 필요합니다.');
   }
 
+  // Chatbot_readHistory_가 CacheService를 먼저 보므로 보통 이 시점에 바로 찾아진다.
+  // 혹시나 캐시까지 비어 있는 아주 드문 경우를 대비해 짧게 한 번만 더 확인한다.
   var history = Chatbot_readHistory_(sessionId);
   if (history.length === 0) {
-    // 세션을 막 시작한 직후 바로 답을 보내면, 방금 쓴 첫 질문 로그가 시트에 완전히 반영되기
-    // 전에 이 요청이 시트를 읽어버리는 경우가 있다(특히 여러 학생이 동시에 몰릴 때 —
-    // 0.6초 한 번으로는 부족한 경우가 실제로 있었음). 점점 길게 간격을 두고 최대 3번 더
-    // 읽어본다(누적 최대 3.5초 — 정상적인 경우엔 이 지연이 전혀 발생하지 않음).
-    var retryDelaysMs = [500, 1000, 2000];
-    for (var i = 0; i < retryDelaysMs.length && history.length === 0; i++) {
-      Utilities.sleep(retryDelaysMs[i]);
-      history = Chatbot_readHistory_(sessionId);
-    }
+    Utilities.sleep(400);
+    history = Chatbot_readHistory_(sessionId);
   }
   if (history.length === 0) throw new Error('존재하지 않는 세션입니다. 새로 시작해주세요.');
 

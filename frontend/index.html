@@ -539,6 +539,9 @@
           <div class="activity-checkbox-list">
             ${checkboxes}
           </div>
+          <div style="margin-top:10px; text-align:right;">
+            <button type="button" class="btn secondary" data-reset-chatbot="${classroom}" style="font-size:0.78rem; padding:6px 12px;">챗봇 테스트 데이터 초기화</button>
+          </div>
         </div>`;
       })
       .join('');
@@ -560,6 +563,9 @@
         setClassActiveActivities(classroom, next);
       });
     });
+    container.querySelectorAll('[data-reset-chatbot]').forEach((btn) => {
+      btn.addEventListener('click', () => resetClassChatbotData(btn.dataset.resetChatbot));
+    });
   }
 
   async function setClassActiveActivities(classroom, activityKeys) {
@@ -567,6 +573,18 @@
       await callApi('setClassActiveActivity', { classroom, activityKeys });
     } catch (err) {
       alert('활동 지정에 실패했습니다: ' + err.message);
+    }
+  }
+
+  // 테스트 기간에 쌓인 챗봇 대화·평가를 반 단위로 정리하는 용도. 삭제된 개념당 시도 횟수(최대
+  // 3회) 카운트도 자연히 초기화됩니다(챗봇_로그를 기준으로 세기 때문).
+  async function resetClassChatbotData(classroom) {
+    if (!confirm(`${classroom}반의 챗봇 대화 기록과 평가를 전부 지웁니다. 되돌릴 수 없어요 — 테스트 기간에 쌓인 데이터를 정리할 때만 쓰세요. 계속할까요?`)) return;
+    try {
+      const result = await callApi('resetClassChatbotData', { classroom });
+      alert(`${classroom}반 챗봇 데이터를 지웠어요. (대화 ${result.deletedLogRows}건, 평가 ${result.deletedEvalRows}건)`);
+    } catch (err) {
+      alert('초기화에 실패했습니다: ' + err.message);
     }
   }
 

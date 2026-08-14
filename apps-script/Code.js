@@ -42,6 +42,7 @@ function getRoutes_() {
     // "관련 내용 답하기" 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },
     sendChatbotMessage: { fn: Chatbot_sendMessage, auth: true },
+    resetClassChatbotData: { fn: Chatbot_resetClassData, auth: true }, // 교사 전용(핸들러 내부에서 검사) — 테스트 기간 데이터 정리용
 
     // 챗봇 AI 루브릭 평가 검수 (교사 전용, 핸들러 내부에서 검사) — 승인해야 학부모 포털에 노출됨
     listPendingChatbotEvals: { fn: ChatbotEval_listPending, auth: true },

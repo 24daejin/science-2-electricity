@@ -1,7 +1,7 @@
 /**
  * "관련 내용 답하기" 챗봇: 질문 먼저 던지는 소크라테스식 자기설명 챗봇.
  * - 사전에 정해진 질문 트리를 쓰지 않고, 학생 답변을 바탕으로 Claude가 매번 다음 질문을 새로 생성합니다.
- * - 최대 5턴(챗봇 질문 5회) 후 종료하며, 다룬/놓친 개념 요약을 제공합니다.
+ * - 최대 10턴(챗봇 질문 10회) 후 종료하며, 다룬/놓친 개념 요약을 제공합니다.
  * - 전체 대화를 챗봇_로그에 저장합니다. 대화 상태는 챗봇_로그를 진실 공급원으로 재구성합니다(클라이언트 조작 방지).
  * - 같은 개념으로 새 대화를 시작하는 건 학생당 최대 3번까지만 허용합니다(Chatbot_start 참고) —
  *   대화 시작 한 번마다 Claude API를 실제로 호출하므로(첫 질문 생성), 무제한 재시작을 막아
@@ -9,7 +9,7 @@
  */
 
 var CHATBOT_LOG_HEADERS = ['세션ID', '턴번호', '발화자', '메시지', '개념', '순번', '이름', '반', '번호', '시각'];
-var CHATBOT_MAX_TURNS = 5;
+var CHATBOT_MAX_TURNS = 10;
 var CHATBOT_MAX_SESSIONS_PER_CONCEPT = 3;
 
 // 개념은 더 이상 고정된 6개 화이트리스트로 검증하지 않습니다. 형성평가_문항의 "핵심개념" 값은
@@ -165,6 +165,33 @@ function Chatbot_appendLog_(sessionId, turnNumber, speaker, message, concept, au
   } catch (e) {
     // 캐시 저장 실패는 조용히 무시(용량 초과 등) — 시트 기록은 이미 성공했다.
   }
+}
+
+/**
+ * action=resetClassChatbotData: 교사 전용. 지정한 반의 챗봇_로그·챗봇_평가를 전부 지웁니다.
+ * 테스트 기간에 쌓인 대화를 정리해서, 실제 수업 시작 전에 학생들의 "개념당 시도 횟수"
+ * 카운트(CHATBOT_MAX_SESSIONS_PER_CONCEPT)도 함께 초기화하려는 용도입니다. 되돌릴 수 없으므로
+ * 프론트에서 반드시 확인(confirm)을 받고 호출해야 합니다.
+ */
+function Chatbot_resetClassData(payload, auth) {
+  requireTeacher_(auth);
+  var classroom = String(payload.classroom || '').trim();
+  if (!classroom) throw new Error('classroom이 필요합니다.');
+
+  function deleteRowsForClassroom(sheetName) {
+    var rows = SheetUtils_getRows(sheetName) || [];
+    var rowNumbers = rows
+      .filter(function (r) { return String(r['반']).trim() === classroom; })
+      .map(function (r) { return r._row; })
+      .sort(function (a, b) { return b - a; }); // 뒤에서부터 지워야 앞쪽 행 번호가 안 밀림
+    rowNumbers.forEach(function (rowNum) { SheetUtils_deleteRow(sheetName, rowNum); });
+    return rowNumbers.length;
+  }
+
+  var deletedLogRows = deleteRowsForClassroom(SHEET_NAMES.CHATBOT_LOG);
+  var deletedEvalRows = deleteRowsForClassroom(SHEET_NAMES.CHATBOT_EVAL);
+
+  return { classroom: classroom, deletedLogRows: deletedLogRows, deletedEvalRows: deletedEvalRows };
 }
 
 /** 이 학생이 지금까지 이 개념으로 대화를 몇 번 "시작"했는지(완료 여부 무관, 세션 개수 기준). */

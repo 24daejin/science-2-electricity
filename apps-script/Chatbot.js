@@ -193,6 +193,13 @@ function Chatbot_sendMessage(payload, auth) {
   }
 
   var history = Chatbot_readHistory_(sessionId);
+  if (history.length === 0) {
+    // 세션을 막 시작한 직후 바로 답을 보내면, 방금 쓴 첫 질문 로그가 시트에 완전히 반영되기
+    // 전에 이 요청이 시트를 읽어버리는 경우가 드물게 있다(특히 여러 학생이 동시에 몰릴 때).
+    // 바로 포기하지 않고 짧게 기다렸다가 한 번 더 읽어본다.
+    Utilities.sleep(600);
+    history = Chatbot_readHistory_(sessionId);
+  }
   if (history.length === 0) throw new Error('존재하지 않는 세션입니다. 새로 시작해주세요.');
 
   var lastTurnNumber = Number(history[history.length - 1]['턴번호']);

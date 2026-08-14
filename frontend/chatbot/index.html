@@ -296,6 +296,12 @@
       if (result.isFinal) endConversation();
     } catch (err) {
       addBubble('system', '메시지를 보내지 못했습니다: ' + err.message, false);
+      // 서버가 "존재하지 않는 세션"이라고 하면, 로컬에 저장된 세션도 더 이상 못 쓰는 상태다.
+      // 그대로 두면 새로고침할 때마다 이 깨진 세션을 계속 이어받으려다 계속 실패하므로,
+      // 저장된 상태를 지워서 다음 진입 때는 새로 시작하게 한다.
+      if (String(err.message || '').includes('존재하지 않는 세션')) {
+        try { sessionStorage.removeItem(storageKey()); } catch (e) {}
+      }
     } finally {
       if (!isFinal) {
         els.sendBtn.disabled = false;

@@ -216,6 +216,19 @@
     }
   }
 
+  /**
+   * send()가 "존재하지 않는 세션" 오류를 받았을 때 호출된다. 학생에게 새로고침을 시키는 대신
+   * 대화 내용(화면에 보이는 말풍선)은 그대로 둔 채, 새 세션을 하나 발급받아 이어서 대화할 수
+   * 있게 한다(같은 개념의 시도 횟수를 하나 더 쓰게 됨). start()의 "이미 저장된 세션 이어받기"
+   * 검사는 방금 sessionStorage를 지웠으므로 자연스럽게 건너뛰고 새 세션을 시작한다.
+   */
+  async function restartAfterBrokenSession() {
+    addBubble('system', '연결이 끊겨서 대화를 새로 시작할게요. 미안해요! 🙏', false);
+    sessionId = null;
+    isFinal = false;
+    await start();
+  }
+
   // ---- 음성 입력(마이크) — 타자가 어려운 상황(태블릿)을 위해 브라우저 내장 음성 인식 사용 ----
   // 안드로이드 Chrome/크롬북에서는 잘 동작하지만 일부 브라우저(iOS Safari 등)는 지원이 없거나
   // 불안정할 수 있어, 지원하지 않으면 버튼 자체를 숨겨서 기존 타자 입력만 보이게 합니다.
@@ -295,12 +308,14 @@
       saveSessionState();
       if (result.isFinal) endConversation();
     } catch (err) {
-      addBubble('system', '메시지를 보내지 못했습니다: ' + err.message, false);
-      // 서버가 "존재하지 않는 세션"이라고 하면, 로컬에 저장된 세션도 더 이상 못 쓰는 상태다.
-      // 그대로 두면 새로고침할 때마다 이 깨진 세션을 계속 이어받으려다 계속 실패하므로,
-      // 저장된 상태를 지워서 다음 진입 때는 새로 시작하게 한다.
+      // 서버가 "존재하지 않는 세션"이라고 하면(주로 반 전체가 거의 동시에 시작해서 시트 반영이
+      // 밀린 경우), 학생이 알아서 새로고침해야 하는 막다른 오류로 두지 않고 자동으로 새 대화를
+      // 다시 시작한다. 방금 쓴 로컬 세션 정보는 더 이상 못 쓰니 지운다.
       if (String(err.message || '').includes('존재하지 않는 세션')) {
         try { sessionStorage.removeItem(storageKey()); } catch (e) {}
+        await restartAfterBrokenSession();
+      } else {
+        addBubble('system', '메시지를 보내지 못했습니다: ' + err.message, false);
       }
     } finally {
       if (!isFinal) {

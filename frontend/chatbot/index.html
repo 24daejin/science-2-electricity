@@ -6,6 +6,8 @@
 <title>관련 내용 답하기 · 전기와 자기 학습 플랫폼</title>
 <link rel="stylesheet" href="../assets/css/style.css" />
 <link rel="icon" type="image/png" href="../assets/images/favicon.png" />
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="page">
@@ -44,10 +46,14 @@
 <script src="../assets/js/api.js"></script>
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/visibility.js"></script>
+<script src="../assets/js/firebase.js"></script>
 <script>
   const user = requireLogin();
   const params = new URLSearchParams(window.location.search);
   const concept = params.get('concept');
+  // 홈 화면의 "오늘의 활동"을 통해 들어온 경우에만 넘어온다(내 대시보드의 "다시 물어보기"
+  // 같은 자유 진입 경로는 이 값이 없음 — 그런 경우는 활동 지정과 무관하게 자유롭게 씀).
+  const activityKey = params.get('activityKey');
 
   const els = {
     error: document.getElementById('error-view'),
@@ -335,7 +341,18 @@
     }
   });
 
-  if (user) start();
+  /** 홈 화면의 "오늘의 활동"을 통해 들어온 경우에만: 선생님이 이 활동을 끄면 자동으로 홈으로 돌려보낸다. */
+  function watchActivityDeactivation() {
+    if (!activityKey || !user || user.role !== 'student') return;
+    watchClassActiveActivity(user.classroom, (keys) => {
+      if (!keys.includes(activityKey)) window.location.href = homeUrl();
+    });
+  }
+
+  if (user) {
+    start();
+    watchActivityDeactivation();
+  }
 </script>
 </body>
 </html>

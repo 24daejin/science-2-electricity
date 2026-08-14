@@ -309,17 +309,25 @@
       btn.addEventListener('click', () => {
         const a = group.activities.find((x) => x.key === btn.dataset.activityKey);
         if (!a) return;
-        if (a.popup) openActivityModal(a.url);
-        else window.location.href = a.url;
+        if (a.popup) {
+          openActivityModal(a.url, a.key);
+        } else {
+          // 진단평가/관련 내용 답하기 페이지가 자기 활동키를 알 수 있도록 넘겨줍니다 —
+          // 그 페이지에서 선생님이 이 활동을 끄면 자동으로 홈으로 돌아오게 하는 데 씁니다.
+          const sep = a.url.includes('?') ? '&' : '?';
+          window.location.href = `${a.url}${sep}activityKey=${encodeURIComponent(a.key)}`;
+        }
       });
     });
   }
 
-  /** 학생 화면 전용: 우리 반의 활성 활동들을 구독해서, 바뀔 때만 다시 그립니다. */
+  /** 학생 화면 전용: 우리 반의 활성 활동들을 구독해서, 바뀔 때만 다시 그립니다. 선생님이
+   * 지금 열려있는 팝업(관련 자료·교과서 활동)의 활동을 끄면 팝업도 같이 닫아 홈으로 돌아오게 합니다. */
   function startSubunitWatch() {
     if (!currentUser || currentUser.role !== 'student') return;
     if (stopSessionWatch) stopSessionWatch();
     stopSessionWatch = watchClassActiveActivity(currentUser.classroom, (keys) => {
+      if (openModalActivityKey && !keys.includes(openModalActivityKey)) closeActivityModal();
       if (JSON.stringify(keys) === JSON.stringify(activeActivityKeys)) return;
       activeActivityKeys = keys;
       renderSubunitGroups();
@@ -335,8 +343,10 @@
   };
 
   let activityModalPollTimer = null;
+  let openModalActivityKey = null; // 지금 팝업으로 열려있는 활동의 활동키(학생 화면에서만 씀) — 선생님이 이 키를 끄면 팝업을 자동으로 닫는 데 사용
 
-  function openActivityModal(url) {
+  function openActivityModal(url, activityKey) {
+    openModalActivityKey = activityKey || null;
     activityModalEls.iframe.style.height = '200px'; // 새로 열릴 때마다 로딩 중엔 작은 기본값으로 초기화
     activityModalEls.iframe.src = url;
     activityModalEls.overlay.style.display = 'flex';
@@ -356,6 +366,7 @@
   function closeActivityModal() {
     activityModalEls.overlay.style.display = 'none';
     activityModalEls.iframe.src = 'about:blank'; // 닫으면 내용을 비워서(현재 페이지가 다시 불려오지 않게), 다음에 열 때 항상 새로 불러오게 함
+    openModalActivityKey = null;
     if (activityModalPollTimer) {
       clearInterval(activityModalPollTimer);
       activityModalPollTimer = null;

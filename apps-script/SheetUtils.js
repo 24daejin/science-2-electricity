@@ -15,6 +15,7 @@ var SHEET_NAMES = {
   CHATBOT_EVAL: '챗봇_평가',
   SUBUNIT_RESOURCES: '소단원_자료',
   ACTIVITY_RESPONSES: '활동_응답',
+  ACTIVITY_HINTS: '활동_모범답안',
   CLASS_ACTIVE_ACTIVITY: '반_활성활동',
 };
 

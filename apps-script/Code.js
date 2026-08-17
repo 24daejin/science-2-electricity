@@ -38,6 +38,7 @@ function getRoutes_() {
     // 교과서 활동("해보기") — 페이지 이미지 위 빈칸에 쓴 답 저장/복원
     getMyActivityResponses: { fn: Activity_getMyResponses, auth: true },
     submitActivityResponse: { fn: Activity_submitResponse, auth: true },
+    getActivityHints: { fn: Activity_getHints, auth: true },
 
     // "관련 내용 답하기" 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },

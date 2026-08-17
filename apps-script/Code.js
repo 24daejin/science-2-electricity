@@ -41,8 +41,6 @@ function getRoutes_() {
     getActivityHints: { fn: Activity_getHints, auth: true },
     getActivityModelAnswers: { fn: Activity_getModelAnswers, auth: true }, // 교사 전용(핸들러 내부에서 검사)
     setActivityModelAnswer: { fn: Activity_setModelAnswer, auth: true }, // 교사 전용(핸들러 내부에서 검사)
-    getActivityParentConsent: { fn: Activity_getParentConsent, auth: true },
-    setActivityParentConsent: { fn: Activity_setParentConsent, auth: true }, // 학생 전용(핸들러 내부에서 검사)
 
     // "관련 내용 답하기" 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },
@@ -82,6 +80,10 @@ function getRoutes_() {
 
     // 학부모 포털 (학부모 전용, 본인 자녀만 조회 가능)
     getParentView: { fn: Parent_getView, auth: true },
+
+    // 학부모 공개 동의 — 활동마다가 아니라 학생 홈 화면에서 한 번만 정하는 전역 설정(옵트인)
+    getParentConsent: { fn: Parent_getConsent, auth: true },
+    setParentConsent: { fn: Parent_setConsent, auth: true }, // 학생 전용(핸들러 내부에서 검사)
   };
 }
 

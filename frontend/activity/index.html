@@ -26,13 +26,6 @@
     </div>
     <div id="hints-section" style="margin-top:14px;"></div>
     <div id="teacher-panel" style="margin-top:14px; display:none;"></div>
-    <div id="consent-row" style="margin-top:14px; display:none;">
-      <label style="display:flex; align-items:center; gap:8px; font-size:0.92rem;">
-        <input type="checkbox" id="consent-checkbox" />
-        <span>이 활동 내용을 부모님께 공개하는 것에 동의해요</span>
-      </label>
-      <p class="muted" id="consent-status" style="margin:4px 0 0; font-size:0.82rem;"></p>
-    </div>
     <div id="save-row" style="margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <button class="btn" id="save-btn">답변 저장</button>
       <span class="muted" id="save-status"></span>
@@ -92,9 +85,6 @@
     imageWrap: document.getElementById('image-wrap'),
     image: document.getElementById('activity-image'),
     teacherPanel: document.getElementById('teacher-panel'),
-    consentRow: document.getElementById('consent-row'),
-    consentCheckbox: document.getElementById('consent-checkbox'),
-    consentStatus: document.getElementById('consent-status'),
     saveRow: document.getElementById('save-row'),
     saveBtn: document.getElementById('save-btn'),
     saveStatus: document.getElementById('save-status'),
@@ -160,7 +150,6 @@
 
     initDropoutTracking(`activity-${activityId}`);
     loadHints(activity); // 기다리지 않음 — 조금 늦게 나타나도 무방(첫 요청이면 AI 생성 시간이 걸릴 수 있음)
-    initConsent(activity);
   }
 
   /**
@@ -212,36 +201,6 @@
           btn.disabled = false;
         }
       });
-    });
-  }
-
-  /** 학생 전용: 이 활동을 부모님께 공개할지 동의 체크(옵트인 — 기본 비공개). */
-  async function initConsent(activity) {
-    let current = false;
-    try {
-      const result = await callApi('getActivityParentConsent', { activityId });
-      current = !!result.consent;
-    } catch (err) {
-      console.warn('공개 동의 상태를 불러오지 못했습니다:', err.message);
-    }
-
-    els.consentRow.style.display = 'block';
-    els.consentCheckbox.checked = current;
-    els.consentStatus.textContent = current ? '지금 부모님께 공개돼 있어요.' : '지금은 부모님께 비공개예요.';
-
-    els.consentCheckbox.addEventListener('change', async () => {
-      const next = els.consentCheckbox.checked;
-      els.consentCheckbox.disabled = true;
-      els.consentStatus.textContent = '저장하는 중...';
-      try {
-        await callApi('setActivityParentConsent', { activityId, activityTitle: activity.title, consent: next });
-        els.consentStatus.textContent = next ? '부모님께 공개하기로 했어요.' : '비공개로 바꿨어요.';
-      } catch (err) {
-        els.consentCheckbox.checked = !next; // 실패했으니 되돌림
-        els.consentStatus.textContent = '저장 실패: ' + err.message;
-      } finally {
-        els.consentCheckbox.disabled = false;
-      }
     });
   }
 

@@ -41,7 +41,7 @@
 
     <div class="card">
       <h2>교과서 활동 내용</h2>
-      <p class="muted">자녀가 "부모님께 공개"에 직접 동의한 활동만 여기 보여요.</p>
+      <p class="muted">자녀가 홈 화면에서 "부모님께 공개"에 동의했을 때만 여기 모든 활동 내용이 보여요.</p>
       <div id="activity-responses"></div>
     </div>
 
@@ -92,6 +92,14 @@
     els.error.textContent = msg;
   }
 
+  // frontend/activity/index.html의 ACTIVITIES 제목과 동일하게 맞춰주세요(그쪽에 활동이
+  // 추가되면 여기도 같이 추가해야 제목이 정상적으로 보입니다).
+  const ACTIVITY_TITLES = {
+    '01_1': '마찰 전기의 성질 알아보기',
+    '01_2': '정전기 유도',
+    '01_3': '검전기로 정전기 유도 현상 관찰하기',
+  };
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
@@ -125,13 +133,13 @@
 
     const activityResponses = result.activityResponses || [];
     if (!activityResponses.length) {
-      els.activityResponses.innerHTML = '<p class="muted">공개 동의한 활동이 아직 없습니다.</p>';
+      els.activityResponses.innerHTML = '<p class="muted">자녀가 아직 공개 동의를 하지 않았거나, 제출한 활동이 없습니다.</p>';
     } else {
       els.activityResponses.innerHTML = activityResponses
         .map(
           (a) => `
         <div class="status-banner" style="margin-bottom:10px;">
-          <strong>${escapeHtml(a.activityTitle || a.activityId)}</strong>
+          <strong>${escapeHtml(ACTIVITY_TITLES[a.activityId] || a.activityId)}</strong>
           <p class="muted" style="margin:4px 0 6px; font-size:0.82rem;">${fmtTime(a.time)}</p>
           <p style="white-space:pre-wrap; margin:0;">${escapeHtml(a.answer)}</p>
         </div>`

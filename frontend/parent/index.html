@@ -40,6 +40,12 @@
     </div>
 
     <div class="card">
+      <h2>교과서 활동 내용</h2>
+      <p class="muted">자녀가 "부모님께 공개"에 직접 동의한 활동만 여기 보여요.</p>
+      <div id="activity-responses"></div>
+    </div>
+
+    <div class="card">
       <h2>"관련 내용 답하기" 대화 평가 (성취기준 기준 5점 루브릭)</h2>
       <p class="muted">챗봇과의 대화가 끝날 때마다 성취기준을 기준으로 AI가 평가한 결과입니다.</p>
       <div id="evaluations"></div>
@@ -75,6 +81,7 @@
     loginStatus: document.getElementById('login-status'),
     studentTitle: document.getElementById('student-title'),
     scoreActivity: document.getElementById('score-activity'),
+    activityResponses: document.getElementById('activity-responses'),
     evaluations: document.getElementById('evaluations'),
     chatbotSessions: document.getElementById('chatbot-sessions'),
     diagTbody: document.getElementById('diag-tbody'),
@@ -83,6 +90,10 @@
   function showError(msg) {
     els.error.style.display = 'block';
     els.error.textContent = msg;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   function fmtTime(t) {
@@ -111,6 +122,22 @@
     const st = result.student;
     els.studentTitle.textContent = `${st.classroom}반 ${st.number}번 ${st.name} 학생`;
     els.scoreActivity.textContent = result.activityScore;
+
+    const activityResponses = result.activityResponses || [];
+    if (!activityResponses.length) {
+      els.activityResponses.innerHTML = '<p class="muted">공개 동의한 활동이 아직 없습니다.</p>';
+    } else {
+      els.activityResponses.innerHTML = activityResponses
+        .map(
+          (a) => `
+        <div class="status-banner" style="margin-bottom:10px;">
+          <strong>${escapeHtml(a.activityTitle || a.activityId)}</strong>
+          <p class="muted" style="margin:4px 0 6px; font-size:0.82rem;">${fmtTime(a.time)}</p>
+          <p style="white-space:pre-wrap; margin:0;">${escapeHtml(a.answer)}</p>
+        </div>`
+        )
+        .join('');
+    }
 
     if (!result.chatbotEvaluations.length) {
       els.evaluations.innerHTML = '<p class="muted">아직 완료된 대화 평가가 없습니다.</p>';

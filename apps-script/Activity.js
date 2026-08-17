@@ -9,11 +9,17 @@
  * 학생이 그 문항을 처음 열 때 Claude가 "질문의 의도"를 짚어주는 도움말을 한 번 생성해서 같은
  * 시트에 저장해둡니다(다음부터는 재생성 없이 그대로 재사용). 모범답안 문장 자체는 절대 그대로
  * 노출하지 않도록 프롬프트로 강제합니다.
+ *
+ * 학부모 공개 동의: 기본은 비공개이고, 학생이 활동 화면에서 직접 동의 체크를 해야 그 활동
+ * 전체(문항 여러 개 포함)가 학부모 포털에 노출됩니다(옵트인). 학생 본인이 판단해서 끌 수
+ * 있도록, 교사가 강제로 켤 수 있는 경로는 없습니다. 활동 단위로만 동의를 받고(문항 단위 X),
+ * "활동_공개동의" 시트에 (활동ID, 학생) 조합마다 한 행만 유지합니다.
  */
 
 var ACTIVITY_RESPONSE_HEADERS = ['활동ID', '문항ID', '순번', '이름', '반', '번호', '답변', '수정시각'];
 var ACTIVITY_POINTS_PER_ANSWER = 10; // 정답 개념이 없는 서술형이라 "제출했는지"로 참여 점수를 줍니다.
 var ACTIVITY_HINT_HEADERS = ['활동ID', '문항ID', '문제', '모범답안', '도움말'];
+var ACTIVITY_CONSENT_HEADERS = ['활동ID', '활동명', '순번', '이름', '반', '번호', '동의여부', '수정시각'];
 
 /** action=getMyActivityResponses: 이 활동에 내가 지금까지 쓴 답을 { 문항ID: 답변 } 형태로 반환(다시 들어왔을 때 복원용). */
 function Activity_getMyResponses(payload, auth) {
@@ -65,6 +71,107 @@ function Activity_submitResponse(payload, auth) {
   // 빈칸을 채워 제출하면 참여 점수(교과서활동 유형)를 적립하고, 지우면(빈 답으로 다시 저장) 점수도 함께 사라집니다.
   ScoreLog_upsert_(auth, '교과서활동', activityId + '-' + questionId, answer.trim() ? ACTIVITY_POINTS_PER_ANSWER : 0);
 
+  return { saved: true };
+}
+
+function Activity_findConsentRow_(activityId, seq) {
+  var rows = SheetUtils_getRows(SHEET_NAMES.ACTIVITY_CONSENT) || [];
+  return rows.find(function (r) {
+    return String(r['활동ID']) === activityId && String(r['순번']) === String(seq);
+  });
+}
+
+/** action=getActivityParentConsent: 이 학생이 이 활동을 학부모에게 공개하기로 동의했는지. 기본은 false(비공개). */
+function Activity_getParentConsent(payload, auth) {
+  var activityId = String(payload.activityId || '').trim();
+  if (!activityId) throw new Error('activityId가 필요합니다.');
+  var existing = Activity_findConsentRow_(activityId, auth.seq);
+  return { consent: !!existing && String(existing['동의여부']) === '예' };
+}
+
+/**
+ * action=setActivityParentConsent: 학생이 직접 동의/철회합니다(옵트인 — 기본 비공개, 학생이
+ * 켜야만 학부모 포털에 노출됨). 교사가 대신 켤 수 있는 경로는 의도적으로 두지 않았습니다.
+ */
+function Activity_setParentConsent(payload, auth) {
+  requireStudent_(auth);
+  var activityId = String(payload.activityId || '').trim();
+  if (!activityId) throw new Error('activityId가 필요합니다.');
+  var consent = !!payload.consent;
+
+  var rowObj = {
+    활동ID: activityId,
+    활동명: String(payload.activityTitle || '').trim(),
+    순번: auth.seq || '',
+    이름: auth.name || '',
+    반: auth.classroom || '',
+    번호: auth.number || '',
+    동의여부: consent ? '예' : '아니오',
+    수정시각: new Date(),
+  };
+
+  var existing = Activity_findConsentRow_(activityId, auth.seq);
+  if (existing) {
+    SheetUtils_updateRow(SHEET_NAMES.ACTIVITY_CONSENT, ACTIVITY_CONSENT_HEADERS, existing._row, rowObj);
+  } else {
+    SheetUtils_appendRow(SHEET_NAMES.ACTIVITY_CONSENT, ACTIVITY_CONSENT_HEADERS, rowObj);
+  }
+  return { saved: true, consent: consent };
+}
+
+/** 교사 전용: 이 활동에 등록된 모범답안(+문제·생성된 도움말)을 { 문항ID: {...} }로 반환합니다. */
+function Activity_getModelAnswers(payload, auth) {
+  requireTeacher_(auth);
+  var activityId = String(payload.activityId || '').trim();
+  if (!activityId) throw new Error('activityId가 필요합니다.');
+
+  var rows = SheetUtils_getRows(SHEET_NAMES.ACTIVITY_HINTS) || [];
+  var byQuestion = {};
+  rows
+    .filter(function (r) { return String(r['활동ID']).trim() === activityId; })
+    .forEach(function (r) {
+      byQuestion[String(r['문항ID']).trim()] = {
+        question: r['문제'] || '',
+        modelAnswer: r['모범답안'] || '',
+        hint: r['도움말'] || '',
+      };
+    });
+  return byQuestion;
+}
+
+/**
+ * action=setActivityModelAnswer: 교사 전용. 문항 하나의 문제/모범답안을 웹앱에서 바로 저장합니다
+ * (시트를 직접 열지 않아도 됨). 모범답안이 바뀌면 기존에 생성돼있던 도움말은 더 이상 맞지
+ * 않으므로 비워서, 다음에 학생이 그 문항을 열 때 새로 생성되게 합니다.
+ */
+function Activity_setModelAnswer(payload, auth) {
+  requireTeacher_(auth);
+  var activityId = String(payload.activityId || '').trim();
+  var questionId = String(payload.questionId || '').trim();
+  if (!activityId || !questionId) throw new Error('activityId, questionId가 필요합니다.');
+  var questionText = String(payload.question || '').trim();
+  var modelAnswer = String(payload.modelAnswer || '').trim();
+
+  var rows = SheetUtils_getRows(SHEET_NAMES.ACTIVITY_HINTS);
+  if (rows === null) {
+    SheetUtils_ensureSheet(SHEET_NAMES.ACTIVITY_HINTS, ACTIVITY_HINT_HEADERS);
+    rows = [];
+  }
+  var existing = rows.find(function (r) {
+    return String(r['활동ID']).trim() === activityId && String(r['문항ID']).trim() === questionId;
+  });
+  var rowObj = {
+    활동ID: activityId,
+    문항ID: questionId,
+    문제: questionText,
+    모범답안: modelAnswer,
+    도움말: '', // 모범답안이 바뀌었으니 다음 요청 때 새로 생성되도록 비운다
+  };
+  if (existing) {
+    SheetUtils_updateRow(SHEET_NAMES.ACTIVITY_HINTS, ACTIVITY_HINT_HEADERS, existing._row, rowObj);
+  } else {
+    SheetUtils_appendRow(SHEET_NAMES.ACTIVITY_HINTS, ACTIVITY_HINT_HEADERS, rowObj);
+  }
   return { saved: true };
 }
 

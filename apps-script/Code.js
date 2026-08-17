@@ -39,6 +39,10 @@ function getRoutes_() {
     getMyActivityResponses: { fn: Activity_getMyResponses, auth: true },
     submitActivityResponse: { fn: Activity_submitResponse, auth: true },
     getActivityHints: { fn: Activity_getHints, auth: true },
+    getActivityModelAnswers: { fn: Activity_getModelAnswers, auth: true }, // 교사 전용(핸들러 내부에서 검사)
+    setActivityModelAnswer: { fn: Activity_setModelAnswer, auth: true }, // 교사 전용(핸들러 내부에서 검사)
+    getActivityParentConsent: { fn: Activity_getParentConsent, auth: true },
+    setActivityParentConsent: { fn: Activity_setParentConsent, auth: true }, // 학생 전용(핸들러 내부에서 검사)
 
     // "관련 내용 답하기" 챗봇
     startChatbotSession: { fn: Chatbot_start, auth: true },

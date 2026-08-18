@@ -580,7 +580,12 @@
 
   async function setClassActiveActivities(classroom, activityKeys) {
     try {
-      await callApi('setClassActiveActivity', { classroom, activityKeys });
+      const result = await callApi('setClassActiveActivity', { classroom, activityKeys });
+      // 시트 저장은 성공해도, 학생 화면이 실제로 구독하는 건 Firestore 쪽이라 그게 실패하면
+      // 학생 화면엔 절대 안 나타난다 — 조용히 넘어가지 않고 바로 알려준다.
+      if (result && result.firestoreSynced === false) {
+        alert(`시트에는 저장됐지만 학생 화면에는 반영되지 않았어요(실시간 동기화 실패): ${result.firestoreError || '알 수 없는 오류'}`);
+      }
     } catch (err) {
       alert('활동 지정에 실패했습니다: ' + err.message);
     }

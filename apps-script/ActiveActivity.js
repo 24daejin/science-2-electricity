@@ -53,7 +53,12 @@ function ActiveActivity_set(payload, auth) {
     SheetUtils_appendRow(SHEET_NAMES.CLASS_ACTIVE_ACTIVITY, CLASS_ACTIVE_ACTIVITY_HEADERS, rowObj);
   }
 
-  // 시트 저장과 별개로 Firestore에도 바로 반영(학생 화면이 실시간으로 받음).
+  // 시트 저장과 별개로 Firestore에도 바로 반영(학생 화면이 실시간으로 받음). 학생 화면은
+  // 시트가 아니라 Firestore만 구독하므로, 이 쓰기가 실패하면 시트엔 저장돼도 학생 화면엔
+  // 절대 나타나지 않는다 — 예전엔 이 실패를 조용히 삼켜서 원인을 알 수 없었기 때문에, 이제는
+  // 실패 사실과 이유를 응답에 그대로 담아 프론트가 교사에게 보여줄 수 있게 한다.
+  var firestoreSynced = true;
+  var firestoreError = null;
   try {
     Firestore_setDocument('classActiveActivity', classroom, {
       classroom: classroom,
@@ -62,8 +67,9 @@ function ActiveActivity_set(payload, auth) {
       updatedBy: auth.name,
     });
   } catch (e) {
-    // Firestore가 아직 설정되지 않았을 수 있음 — 시트 저장은 이미 성공했으니 조용히 넘어간다.
+    firestoreSynced = false;
+    firestoreError = e.message;
   }
 
-  return { saved: true };
+  return { saved: true, firestoreSynced: firestoreSynced, firestoreError: firestoreError };
 }

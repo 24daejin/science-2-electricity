@@ -87,16 +87,6 @@
       </ul>
     </div>
 
-    <div class="card" id="parent-consent-card" style="display:none;">
-      <h2>학부모 공개 동의</h2>
-      <p class="muted">활동마다 따로 묻지 않고 여기서 한 번만 정해요. 동의하면 내가 교과서 활동에 쓴 답을 부모님도 학부모 포털에서 볼 수 있어요 — 마음이 바뀌면 언제든 여기 와서 다시 바꿀 수 있어요.</p>
-      <label style="display:flex; align-items:center; gap:8px; font-size:0.92rem;">
-        <input type="checkbox" id="parent-consent-checkbox" />
-        <span>부모님께 제 교과서 활동 내용을 공개하는 것에 동의해요</span>
-      </label>
-      <p class="muted" id="parent-consent-status" style="margin:6px 0 0; font-size:0.82rem;"></p>
-    </div>
-
     <div class="card" id="class-subunit-card" style="display:none;">
       <h2>반별 오늘 활동 지정</h2>
       <p class="muted">반코드를 준 것만으로는 학생이 무엇을 해야 하는지 정해지지 않아요. 반마다 그룹(진단평가 / 소단원 1~6)을 고른 뒤, 그 안의 활동(관련 내용 답하기·교과서 활동)을 체크박스로 켜면 그 반 학생 홈 화면에서 켜진 활동만 누를 수 있게 나타나요. 여러 개를 동시에 켜둘 수 있어요.</p>
@@ -612,7 +602,6 @@
     document.getElementById('brand-actions').style.display = 'flex';
     document.getElementById('my-dashboard-link').style.display = user.role === 'student' ? 'inline-flex' : 'none';
     document.getElementById('standards-card').style.display = user.role === 'student' ? 'block' : 'none';
-    document.getElementById('parent-consent-card').style.display = user.role === 'student' ? 'block' : 'none';
     document.getElementById('teacher-card').style.display = user.role === 'teacher' ? 'block' : 'none';
     if (user.role === 'teacher') {
       loadClassSubunitControl();
@@ -620,42 +609,8 @@
     } else {
       loadMyScore();
       startSubunitWatch();
-      initParentConsent();
     }
     loadSubunitResources().then(renderSubunitGroups);
-  }
-
-  /**
-   * 학생 전용: 교과서 활동 내용을 부모님께 공개할지 홈 화면에서 딱 한 번(전역) 정합니다
-   * (옵트인 — 기본 비공개). 활동마다 따로 묻지 않으므로 개별 활동 화면에는 이 옵션이 없습니다.
-   */
-  async function initParentConsent() {
-    const checkbox = document.getElementById('parent-consent-checkbox');
-    const status = document.getElementById('parent-consent-status');
-    let current = false;
-    try {
-      const result = await callApi('getParentConsent', {});
-      current = !!result.consent;
-    } catch (err) {
-      console.warn('공개 동의 상태를 불러오지 못했습니다:', err.message);
-    }
-    checkbox.checked = current;
-    status.textContent = current ? '지금 부모님께 공개돼 있어요.' : '지금은 부모님께 비공개예요.';
-
-    checkbox.addEventListener('change', async () => {
-      const next = checkbox.checked;
-      checkbox.disabled = true;
-      status.textContent = '저장하는 중...';
-      try {
-        await callApi('setParentConsent', { consent: next });
-        status.textContent = next ? '부모님께 공개하기로 했어요.' : '비공개로 바꿨어요.';
-      } catch (err) {
-        checkbox.checked = !next; // 실패했으니 되돌림
-        status.textContent = '저장 실패: ' + err.message;
-      } finally {
-        checkbox.disabled = false;
-      }
-    });
   }
 
   async function loadPendingEvalBadge() {

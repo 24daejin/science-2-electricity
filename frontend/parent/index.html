@@ -41,7 +41,7 @@
 
     <div class="card">
       <h2>교과서 활동 내용</h2>
-      <p class="muted">자녀가 홈 화면에서 "부모님께 공개"에 동의했을 때만 여기 모든 활동 내용이 보여요.</p>
+      <p class="muted">자녀가 지금까지 제출한 교과서 활동 답변이에요.</p>
       <div id="activity-responses"></div>
     </div>
 
@@ -133,7 +133,7 @@
 
     const activityResponses = result.activityResponses || [];
     if (!activityResponses.length) {
-      els.activityResponses.innerHTML = '<p class="muted">자녀가 아직 공개 동의를 하지 않았거나, 제출한 활동이 없습니다.</p>';
+      els.activityResponses.innerHTML = '<p class="muted">아직 제출한 활동이 없습니다.</p>';
     } else {
       els.activityResponses.innerHTML = activityResponses
         .map(

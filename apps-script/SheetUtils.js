@@ -16,7 +16,6 @@ var SHEET_NAMES = {
   SUBUNIT_RESOURCES: '소단원_자료',
   ACTIVITY_RESPONSES: '활동_응답',
   ACTIVITY_HINTS: '활동_모범답안',
-  PARENT_CONSENT: '학부모_공개동의',
   CLASS_ACTIVE_ACTIVITY: '반_활성활동',
 };
 
